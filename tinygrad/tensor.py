@@ -43,20 +43,6 @@ def _metaop(op, shape:Tuple[sint,...], dtype:DType, device:Union[str, Tuple[str,
   if isinstance(device, str): return LazyBuffer.metaop(op, shape, dtype, device, arg, src)
   return MultiLazyBuffer([LazyBuffer.metaop(op, shape, dtype, d, arg, src) for d in device], None)
 
-def _from_np_dtype(npdtype:'np.dtype') -> DType: # type: ignore [name-defined] # noqa: F821
-  import numpy as np
-  return dtypes.fields()[np.dtype(npdtype).name]
-def _to_np_dtype(dtype:DType) -> Optional[type]:
-  import numpy as np
-  return np.dtype(dtype.fmt).type if dtype.fmt is not None else None
-
-def _fromnp(x: 'np.ndarray') -> LazyBuffer:  # type: ignore [name-defined] # noqa: F821
-  ret = LazyBuffer.metaop(Ops.EMPTY, x.shape, _from_np_dtype(x.dtype), "NPY")
-  # fake realize
-  ret.buffer.allocate(x)
-  del ret.srcs
-  return ret
-
 def get_shape(x) -> Tuple[int, ...]:
   # NOTE: str is special because __getitem__ on a str is still a str
   if not hasattr(x, "__len__") or not hasattr(x, "__getitem__") or isinstance(x, str) or (hasattr(x, "shape") and x.shape == ()): return ()
@@ -146,11 +132,6 @@ class Tensor(SimpleMathTrait):  # pylint: disable=abstract-method
         else: dtype = dtypes.default_int if d and all_int(d) else dtypes.default_float
       if dtype == dtypes.bfloat16: data = Tensor(_frompy(data, dtypes.float32), device=device).cast(dtypes.bfloat16).lazydata
       else: data = _frompy(data, dtype)
-    elif str(type(data)) == "<class 'numpy.ndarray'>":
-      import numpy as np
-      assert isinstance(data, np.ndarray), f"expected np.ndarray, got {data}"
-      if data.shape == (): data = _metaop(Ops.CONST, tuple(), dtype or _from_np_dtype(data.dtype), device, data.item())
-      else: data = _fromnp(data.astype(npdtype) if dtype is not None and (npdtype:=_to_np_dtype(dtype)) is not None else data)  # type: ignore [name-defined]
     elif isinstance(data, pathlib.Path):
       dtype = dtype or dtypes.uint8
       data = _metaop(Ops.EMPTY, (data.stat().st_size // dtype.itemsize,), dtype, f"DISK:{data.resolve()}")
@@ -300,21 +281,6 @@ class Tensor(SimpleMathTrait):  # pylint: disable=abstract-method
     ```
     """
     return self.data().tolist()
-
-  def numpy(self) -> 'np.ndarray':  # type: ignore [name-defined] # noqa: F821
-    """
-    Returns the value of this tensor as a `numpy.ndarray`.
-
-    ```python exec="true" source="above" session="tensor" result="python"
-    t = Tensor([1, 2, 3, 4])
-    print(repr(t.numpy()))
-    ```
-    """
-    import numpy as np
-    if self.dtype == dtypes.bfloat16: return self.float().numpy()
-    assert _to_np_dtype(self.dtype) is not None, f"no np dtype for {self.dtype}"
-    assert all_int(self.shape), f"no data if shape is symbolic, {self.shape=}"
-    return np.frombuffer(self._data(), dtype=_to_np_dtype(self.dtype)).reshape(self.shape)
 
   def clone(self) -> Tensor:
     """
