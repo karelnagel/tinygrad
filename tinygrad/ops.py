@@ -270,8 +270,7 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   # *** uop evaluation ***
 
   def simplify(self):
-    with Context(TRACK_MATCH_STATS=0):
-      return graph_rewrite(self, symbolic)
+    return graph_rewrite(self, symbolic)
   def ssimplify(self) -> Union[UOp, ConstType]: return ret.arg if (ret:=self.simplify()).op is Ops.CONST else ret
   def _eval(self, dtype, expected_type:Type[T]) -> T:
     assert self.dtype in dtype, f"eval with wrong dtype {self}"
@@ -283,8 +282,7 @@ class UOp(MathTrait, metaclass=UOpMetaClass):
   def __int__(self): return self._eval(dtypes.ints, int)
   def __float__(self): return self._eval(dtypes.floats, float)
   def substitute(self, dvars:Dict[UOp, UOp]):
-    with Context(TRACK_MATCH_STATS=0):
-      return graph_rewrite(self, _substitute, dvars)
+    return graph_rewrite(self, _substitute, dvars)
 
   # *** uop syntactic sugar ***
 
@@ -676,32 +674,7 @@ class PatternMatcher:
 
 # *** tracking pattern matcher ***
 
-TRACK_MATCH_STATS = ContextVar("TRACK_MATCH_STATS", 2 if getenv("VIZ") else 0)
-match_stats:Dict[UPat, List[Union[int, float]]] = dict()
-@dataclass(frozen=True)
-class TrackedRewriteContext:
-  loc: Tuple[str, int]                                                                              # location that called graph_rewrite
-  sink: UOp                                                                                         # the sink passed into the rewrite
-  matches: List[Tuple[UOp, Optional[UOp], Optional[UPat], float]] = field(default_factory=list)     # all matches of sparents
-
-rewrite_stack: List[Tuple[Any, List[TrackedRewriteContext]]] = []
-contexts: List[Tuple[Any, List[TrackedRewriteContext]]] = []
-_rewrite_cnt: Dict[str, int] = {}
-def track_rewrites(named=False):
-  def _decorator(func):
-    def __wrapper(self, *args, **kwargs):
-      if TRACK_MATCH_STATS >= 2:
-        if named: _rewrite_cnt[func.__name__] = _rewrite_cnt.setdefault(func.__name__, 0)+1
-        rewrite_stack.append((f"{(n:=func.__name__)}_{_rewrite_cnt[n]}" if named else self, []))
-      try: ret = func(self, *args, **kwargs)
-      finally: # NOTE: save everything in the stack
-        if TRACK_MATCH_STATS >= 2: contexts.append(rewrite_stack.pop())
-      return ret
-    return __wrapper
-  return _decorator
-
 # *** simple graph rewrite engine ***
-
 class RewriteContext:
   def __init__(self, pm, ctx):
     self.pm: PatternMatcher = pm
@@ -715,8 +688,6 @@ class RewriteContext:
     return ret
 
 def graph_rewrite(sink:UOp, pm:PatternMatcher, ctx=None) -> UOp:
-  if TRACK_MATCH_STATS >= 2 and len(rewrite_stack) != 0:
-    rewrite_stack[-1][1].append(TrackedRewriteContext(((frm:=sys._getframe(1)).f_code.co_filename, frm.f_lineno), sink))
   return RewriteContext(pm, ctx).rewrite(sink)
 
 # ***** uop type spec *****

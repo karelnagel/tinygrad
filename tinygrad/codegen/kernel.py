@@ -6,7 +6,7 @@ from typing import Optional, List, Tuple, cast, Dict, Final, DefaultDict, Callab
 from enum import Enum, auto
 
 from tinygrad.ops import GroupOp, KernelInfo, UOp, Ops, PatternMatcher, can_pad, print_uops, type_verify, resolve, Variable, sint, \
-    graph_rewrite, track_rewrites, UPat
+    graph_rewrite, UPat
 from tinygrad.device import Device
 from tinygrad.renderer import Renderer, TensorCore, ProgramSpec
 from tinygrad.dtype import ImageDType
@@ -687,7 +687,6 @@ class Kernel:
 
   # **** this is the lowerer ****
 
-  @track_rewrites()
   def linearize(self) -> Kernel:
     modified_ast = self.get_optimized_ast()
 
