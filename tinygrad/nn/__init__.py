@@ -111,51 +111,51 @@ class Conv2d:
   def __call__(self, x:Tensor) -> Tensor:
     return x.conv2d(self.weight, self.bias, padding=self.padding, stride=self.stride, dilation=self.dilation, groups=self.groups)
 
-def ConvTranspose1d(in_channels:int, out_channels:int, kernel_size:int, stride=1, padding=0, output_padding=0, dilation=1,
-                      groups=1, bias=True) -> ConvTranspose2d:
-  """
-  Applies a 1D transposed convolution operator over an input signal composed of several input planes.
+# def ConvTranspose1d(in_channels:int, out_channels:int, kernel_size:int, stride=1, padding=0, output_padding=0, dilation=1,
+#                       groups=1, bias=True) -> ConvTranspose2d:
+#   """
+#   Applies a 1D transposed convolution operator over an input signal composed of several input planes.
 
-  See: https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose1d
+#   See: https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose1d
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  conv = nn.ConvTranspose1d(1, 1, 3)
-  t = Tensor.rand(1, 1, 4)
-  print(t.numpy())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = conv(t)
-  print(t.numpy())
-  ```
-  """
-  return ConvTranspose2d(in_channels, out_channels, (kernel_size,), stride, padding, output_padding, dilation, groups, bias)
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   conv = nn.ConvTranspose1d(1, 1, 3)
+#   t = Tensor.rand(1, 1, 4)
+#   print(t.numpy())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = conv(t)
+#   print(t.numpy())
+#   ```
+#   """
+#   return ConvTranspose2d(in_channels, out_channels, (kernel_size,), stride, padding, output_padding, dilation, groups, bias)
 
-class ConvTranspose2d(Conv2d):
-  """
-  Applies a 2D transposed convolution operator over an input image.
+# class ConvTranspose2d(Conv2d):
+#   """
+#   Applies a 2D transposed convolution operator over an input image.
 
-  See: https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d
+#   See: https://pytorch.org/docs/stable/generated/torch.nn.ConvTranspose2d
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  conv = nn.ConvTranspose2d(1, 1, 3)
-  t = Tensor.rand(1, 1, 4, 4)
-  print(t.numpy())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = conv(t)
-  print(t.numpy())
-  ```
-  """
-  def __init__(self, in_channels:int, out_channels:int, kernel_size:Union[int, Tuple[int, ...]], stride=1, padding=0, output_padding=0,
-                dilation=1, groups=1, bias=True):
-    super().__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
-    scale = 1 / math.sqrt(in_channels * prod(self.kernel_size))
-    self.weight = Tensor.uniform(in_channels, out_channels//groups, *self.kernel_size, low=-scale, high=scale)
-    self.output_padding = output_padding
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   conv = nn.ConvTranspose2d(1, 1, 3)
+#   t = Tensor.rand(1, 1, 4, 4)
+#   print(t.numpy())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = conv(t)
+#   print(t.numpy())
+#   ```
+#   """
+#   def __init__(self, in_channels:int, out_channels:int, kernel_size:Union[int, Tuple[int, ...]], stride=1, padding=0, output_padding=0,
+#                 dilation=1, groups=1, bias=True):
+#     super().__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
+#     scale = 1 / math.sqrt(in_channels * prod(self.kernel_size))
+#     self.weight = Tensor.uniform(in_channels, out_channels//groups, *self.kernel_size, low=-scale, high=scale)
+#     self.output_padding = output_padding
 
-  def __call__(self, x:Tensor) -> Tensor:
-    return x.conv_transpose2d(self.weight, self.bias, padding=self.padding, output_padding=self.output_padding, stride=self.stride,
-                              dilation=self.dilation, groups=self.groups)
+#   def __call__(self, x:Tensor) -> Tensor:
+#     return x.conv_transpose2d(self.weight, self.bias, padding=self.padding, output_padding=self.output_padding, stride=self.stride,
+#                               dilation=self.dilation, groups=self.groups)
 
 class Linear:
   """
@@ -181,109 +181,109 @@ class Linear:
   def __call__(self, x:Tensor) -> Tensor:
     return x.linear(self.weight.transpose(), self.bias)
 
-class GroupNorm:
-  """
-  Applies Group Normalization over a mini-batch of inputs.
+# class GroupNorm:
+#   """
+#   Applies Group Normalization over a mini-batch of inputs.
 
-  - Described: https://paperswithcode.com/method/group-normalization
-  - Paper: https://arxiv.org/abs/1803.08494v3
+#   - Described: https://paperswithcode.com/method/group-normalization
+#   - Paper: https://arxiv.org/abs/1803.08494v3
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  norm = nn.GroupNorm(2, 12)
-  t = Tensor.rand(2, 12, 4, 4) * 2 + 1
-  print(t.mean().item(), t.std().item())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = norm(t)
-  print(t.mean().item(), t.std().item())
-  ```
-  """
-  def __init__(self, num_groups:int, num_channels:int, eps=1e-5, affine=True):
-    self.num_groups, self.num_channels, self.eps = num_groups, num_channels, eps
-    self.weight: Optional[Tensor] = Tensor.ones(num_channels) if affine else None
-    self.bias: Optional[Tensor] = Tensor.zeros(num_channels) if affine else None
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   norm = nn.GroupNorm(2, 12)
+#   t = Tensor.rand(2, 12, 4, 4) * 2 + 1
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = norm(t)
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   """
+#   def __init__(self, num_groups:int, num_channels:int, eps=1e-5, affine=True):
+#     self.num_groups, self.num_channels, self.eps = num_groups, num_channels, eps
+#     self.weight: Optional[Tensor] = Tensor.ones(num_channels) if affine else None
+#     self.bias: Optional[Tensor] = Tensor.zeros(num_channels) if affine else None
 
-  def __call__(self, x:Tensor) -> Tensor:
-    # reshape for layernorm to work as group norm
-    # subtract mean and divide stddev
-    x = x.reshape(x.shape[0], self.num_groups, -1).layernorm(eps=self.eps).reshape(x.shape)
+#   def __call__(self, x:Tensor) -> Tensor:
+#     # reshape for layernorm to work as group norm
+#     # subtract mean and divide stddev
+#     x = x.reshape(x.shape[0], self.num_groups, -1).layernorm(eps=self.eps).reshape(x.shape)
 
-    if self.weight is None or self.bias is None: return x
-    # elementwise_affine on channels
-    return x * self.weight.reshape(1, -1, *[1] * (len(x.shape)-2)) + self.bias.reshape(1, -1, *[1] * (len(x.shape)-2))
+#     if self.weight is None or self.bias is None: return x
+#     # elementwise_affine on channels
+#     return x * self.weight.reshape(1, -1, *[1] * (len(x.shape)-2)) + self.bias.reshape(1, -1, *[1] * (len(x.shape)-2))
 
-class InstanceNorm:
-  """
-  Applies Instance Normalization over a mini-batch of inputs.
+# class InstanceNorm:
+#   """
+#   Applies Instance Normalization over a mini-batch of inputs.
 
-  - Described: https://paperswithcode.com/method/instance-normalization
-  - Paper: https://arxiv.org/abs/1607.08022v3
+#   - Described: https://paperswithcode.com/method/instance-normalization
+#   - Paper: https://arxiv.org/abs/1607.08022v3
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  norm = nn.InstanceNorm(3)
-  t = Tensor.rand(2, 3, 4, 4) * 2 + 1
-  print(t.mean().item(), t.std().item())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = norm(t)
-  print(t.mean().item(), t.std().item())
-  ```
-  """
-  def __init__(self, num_features:int, eps=1e-5, affine=True):
-    self.num_features, self.eps = num_features, eps
-    self.weight: Optional[Tensor] = Tensor.ones(num_features) if affine else None
-    self.bias: Optional[Tensor] = Tensor.zeros(num_features) if affine else None
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   norm = nn.InstanceNorm(3)
+#   t = Tensor.rand(2, 3, 4, 4) * 2 + 1
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = norm(t)
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   """
+#   def __init__(self, num_features:int, eps=1e-5, affine=True):
+#     self.num_features, self.eps = num_features, eps
+#     self.weight: Optional[Tensor] = Tensor.ones(num_features) if affine else None
+#     self.bias: Optional[Tensor] = Tensor.zeros(num_features) if affine else None
 
-  def __call__(self, x:Tensor) -> Tensor:
-    x = x.reshape(x.shape[0], self.num_features, -1).layernorm(eps=self.eps).reshape(x.shape)
-    if self.weight is None or self.bias is None: return x
-    return x * self.weight.reshape(1, -1, *[1] * (len(x.shape)-2)) + self.bias.reshape(1, -1, *[1] * (len(x.shape)-2))
+#   def __call__(self, x:Tensor) -> Tensor:
+#     x = x.reshape(x.shape[0], self.num_features, -1).layernorm(eps=self.eps).reshape(x.shape)
+#     if self.weight is None or self.bias is None: return x
+#     return x * self.weight.reshape(1, -1, *[1] * (len(x.shape)-2)) + self.bias.reshape(1, -1, *[1] * (len(x.shape)-2))
 
-class LayerNorm:
-  """
-  Applies Layer Normalization over a mini-batch of inputs.
+# class LayerNorm:
+#   """
+#   Applies Layer Normalization over a mini-batch of inputs.
 
-  - Described: https://paperswithcode.com/method/layer-normalization
-  - Paper: https://arxiv.org/abs/1607.06450v1
+#   - Described: https://paperswithcode.com/method/layer-normalization
+#   - Paper: https://arxiv.org/abs/1607.06450v1
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  norm = nn.LayerNorm(3)
-  t = Tensor.rand(2, 5, 3) * 2 + 1
-  print(t.mean().item(), t.std().item())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = norm(t)
-  print(t.mean().item(), t.std().item())
-  ```
-  """
-  def __init__(self, normalized_shape:Union[int, Tuple[int, ...]], eps=1e-5, elementwise_affine=True):
-    self.normalized_shape: Tuple[int, ...] = (normalized_shape,) if isinstance(normalized_shape, int) else tuple(normalized_shape)
-    self.axis, self.eps, self.elementwise_affine = tuple(-1-i for i in range(len(self.normalized_shape))), eps, elementwise_affine
-    self.weight, self.bias = (Tensor.ones(*self.normalized_shape), Tensor.zeros(*self.normalized_shape)) if elementwise_affine else (None, None)
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   norm = nn.LayerNorm(3)
+#   t = Tensor.rand(2, 5, 3) * 2 + 1
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = norm(t)
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   """
+#   def __init__(self, normalized_shape:Union[int, Tuple[int, ...]], eps=1e-5, elementwise_affine=True):
+#     self.normalized_shape: Tuple[int, ...] = (normalized_shape,) if isinstance(normalized_shape, int) else tuple(normalized_shape)
+#     self.axis, self.eps, self.elementwise_affine = tuple(-1-i for i in range(len(self.normalized_shape))), eps, elementwise_affine
+#     self.weight, self.bias = (Tensor.ones(*self.normalized_shape), Tensor.zeros(*self.normalized_shape)) if elementwise_affine else (None, None)
 
-  def __call__(self, x:Tensor) -> Tensor:
-    assert self.normalized_shape == x.shape[-len(self.normalized_shape):], f"last dimensions of {x.shape} must match {self.normalized_shape}"
-    x = x.layernorm(eps=self.eps, axis=self.axis)
-    if not self.elementwise_affine: return x
-    return x * self.weight + self.bias
+#   def __call__(self, x:Tensor) -> Tensor:
+#     assert self.normalized_shape == x.shape[-len(self.normalized_shape):], f"last dimensions of {x.shape} must match {self.normalized_shape}"
+#     x = x.layernorm(eps=self.eps, axis=self.axis)
+#     if not self.elementwise_affine: return x
+#     return x * self.weight + self.bias
 
-class LayerNorm2d(LayerNorm):
-  """
-  Applies Layer Normalization over a mini-batch of 2D inputs.
+# class LayerNorm2d(LayerNorm):
+#   """
+#   Applies Layer Normalization over a mini-batch of 2D inputs.
 
-  See: `LayerNorm`
+#   See: `LayerNorm`
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  norm = nn.LayerNorm2d(3)
-  t = Tensor.rand(2, 3, 4, 4) * 2 + 1
-  print(t.mean().item(), t.std().item())
-  ```
-  ```python exec="true" source="above" session="tensor" result="python"
-  t = norm(t)
-  print(t.mean().item(), t.std().item())
-  ```
-  """
-  def __call__(self, x: Tensor) -> Tensor: return super().__call__(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   norm = nn.LayerNorm2d(3)
+#   t = Tensor.rand(2, 3, 4, 4) * 2 + 1
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   t = norm(t)
+#   print(t.mean().item(), t.std().item())
+#   ```
+#   """
+#   def __call__(self, x: Tensor) -> Tensor: return super().__call__(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
 class RMSNorm:
   """
@@ -307,47 +307,47 @@ class RMSNorm:
 
   def __call__(self, x:Tensor) -> Tensor: return self._norm(x.float()).cast(x.dtype) * self.weight
 
-class Embedding:
-  """
-  A simple lookup table that stores embeddings of a fixed dictionary and size.
+# class Embedding:
+#   """
+#   A simple lookup table that stores embeddings of a fixed dictionary and size.
 
-  See: https://pytorch.org/docs/stable/generated/torch.nn.Embedding
+#   See: https://pytorch.org/docs/stable/generated/torch.nn.Embedding
 
-  ```python exec="true" source="above" session="tensor" result="python"
-  emb = nn.Embedding(10, 3)
-  print(emb(Tensor([1, 2, 3, 1])).numpy())
-  ```
-  """
-  def __init__(self, vocab_size:int, embed_size:int):
-    self.vocab_sz, self.embed_sz, self.weight = vocab_size, embed_size, Tensor.glorot_uniform(vocab_size, embed_size)
+#   ```python exec="true" source="above" session="tensor" result="python"
+#   emb = nn.Embedding(10, 3)
+#   print(emb(Tensor([1, 2, 3, 1])).numpy())
+#   ```
+#   """
+#   def __init__(self, vocab_size:int, embed_size:int):
+#     self.vocab_sz, self.embed_sz, self.weight = vocab_size, embed_size, Tensor.glorot_uniform(vocab_size, embed_size)
 
-  def __call__(self, idx:Tensor) -> Tensor:
-    if idx.numel() == 0: return Tensor.empty(idx.shape+(self.embed_sz,), device=self.weight.device)
-    arange_shp, weight_shp, big_shp = (self.vocab_sz, 1), (self.vocab_sz, self.embed_sz), idx.shape+(self.vocab_sz, self.embed_sz,)
-    if not hasattr(self, 'arange'): self.arange = Tensor.arange(self.vocab_sz, requires_grad=False, device=self.weight.device).reshape(arange_shp)
-    arange, idx, vals = self.arange.expand(big_shp), idx.reshape(idx.shape+(1, 1,)).expand(big_shp), self.weight.reshape(weight_shp).expand(big_shp)
-    return (arange == idx).mul(vals).sum(-2, acc_dtype=vals.dtype)
+#   def __call__(self, idx:Tensor) -> Tensor:
+#     if idx.numel() == 0: return Tensor.empty(idx.shape+(self.embed_sz,), device=self.weight.device)
+#     arange_shp, weight_shp, big_shp = (self.vocab_sz, 1), (self.vocab_sz, self.embed_sz), idx.shape+(self.vocab_sz, self.embed_sz,)
+#     if not hasattr(self, 'arange'): self.arange = Tensor.arange(self.vocab_sz, requires_grad=False, device=self.weight.device).reshape(arange_shp)
+#     arange, idx, vals = self.arange.expand(big_shp), idx.reshape(idx.shape+(1, 1,)).expand(big_shp), self.weight.reshape(weight_shp).expand(big_shp)
+#     return (arange == idx).mul(vals).sum(-2, acc_dtype=vals.dtype)
 
-class LSTMCell:
-  """
-  A long short-term memory (LSTM) cell.
+# class LSTMCell:
+#   """
+#   A long short-term memory (LSTM) cell.
 
-  Args:
-    input_size: The number of expected features in the input `x`
-    hidden_size: The number of features in the hidden state `h`
-    bias: If ``False``, then the layer does not use bias weights `b_ih` and `b_hh`
-  """
-  def __init__(self, input_size:int, hidden_size:int, bias:bool=True):
-    stdv = 1.0 / math.sqrt(hidden_size)
-    self.weight_ih = Tensor.uniform(hidden_size*4, input_size, low=-stdv, high=stdv)
-    self.weight_hh = Tensor.uniform(hidden_size*4, hidden_size, low=-stdv, high=stdv)
-    self.bias_ih, self.bias_hh = (Tensor.zeros(hidden_size*4), Tensor.zeros(hidden_size*4)) if bias else (None, None)
+#   Args:
+#     input_size: The number of expected features in the input `x`
+#     hidden_size: The number of features in the hidden state `h`
+#     bias: If ``False``, then the layer does not use bias weights `b_ih` and `b_hh`
+#   """
+#   def __init__(self, input_size:int, hidden_size:int, bias:bool=True):
+#     stdv = 1.0 / math.sqrt(hidden_size)
+#     self.weight_ih = Tensor.uniform(hidden_size*4, input_size, low=-stdv, high=stdv)
+#     self.weight_hh = Tensor.uniform(hidden_size*4, hidden_size, low=-stdv, high=stdv)
+#     self.bias_ih, self.bias_hh = (Tensor.zeros(hidden_size*4), Tensor.zeros(hidden_size*4)) if bias else (None, None)
 
-  def __call__(self, x:Tensor, hc:Optional[Tuple[Tensor, Tensor]]=None) -> Tuple[Tensor, Tensor]:
-    if hc is None: hc = (Tensor.zeros(x.size(0), self.weight_hh.size(1), dtype=x.dtype, device=x.device),)*2
-    gates = x.linear(self.weight_ih.T, self.bias_ih) + hc[0].linear(self.weight_hh.T, self.bias_hh)
-    i, f, g, o = gates.chunk(4, dim=1)
-    i, f, g, o = i.sigmoid(), f.sigmoid(), g.tanh(), o.sigmoid()
-    new_c = f * hc[1] + i * g
-    new_h = o * new_c.tanh()
-    return (new_h.contiguous(), new_c.contiguous())
+#   def __call__(self, x:Tensor, hc:Optional[Tuple[Tensor, Tensor]]=None) -> Tuple[Tensor, Tensor]:
+#     if hc is None: hc = (Tensor.zeros(x.size(0), self.weight_hh.size(1), dtype=x.dtype, device=x.device),)*2
+#     gates = x.linear(self.weight_ih.T, self.bias_ih) + hc[0].linear(self.weight_hh.T, self.bias_hh)
+#     i, f, g, o = gates.chunk(4, dim=1)
+#     i, f, g, o = i.sigmoid(), f.sigmoid(), g.tanh(), o.sigmoid()
+#     new_c = f * hc[1] + i * g
+#     new_h = o * new_c.tanh()
+#     return (new_h.contiguous(), new_c.contiguous())

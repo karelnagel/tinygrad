@@ -271,61 +271,61 @@ class Kernel:
 
   # ******************** high level optimizers ********************
 
-  def _create_tc_opts(self, reduceop:UOp, tc:TensorCore, axis:int, opt_level:int) -> Optional[TensorCoreOptions]:
-    has_cast = tc.dtype_in != tc.dtype_out
-    if has_cast and not (reduceop.src[0].op is Ops.CAST and reduceop.src[0].dtype == tc.dtype_out): return None
+  # def _create_tc_opts(self, reduceop:UOp, tc:TensorCore, axis:int, opt_level:int) -> Optional[TensorCoreOptions]:
+  #   has_cast = tc.dtype_in != tc.dtype_out
+  #   if has_cast and not (reduceop.src[0].op is Ops.CAST and reduceop.src[0].dtype == tc.dtype_out): return None
 
-    mul_op = reduceop.src[0].src[0] if has_cast else reduceop.src[0]
-    if mul_op.op is not Ops.MUL: return None
+  #   mul_op = reduceop.src[0].src[0] if has_cast else reduceop.src[0]
+  #   if mul_op.op is not Ops.MUL: return None
 
-    def buf_index(src:UOp) -> Optional[int]:
-      # TODO: apply tc even if the sources are not from LOAD
-      if src.op is Ops.LOAD and src.dtype == tc.dtype_in: return self.bufs.index(src)
-      try:
-        if opt_level >= 1 and src.op is Ops.CAST and src.dtype == tc.dtype_in: return self.bufs.index(src.src[0])
-      except ValueError: return None
-      return None
-    if (buf0:=buf_index(mul_op.src[0])) is None or (buf1:=buf_index(mul_op.src[1])) is None: return None
+  #   def buf_index(src:UOp) -> Optional[int]:
+  #     # TODO: apply tc even if the sources are not from LOAD
+  #     if src.op is Ops.LOAD and src.dtype == tc.dtype_in: return self.bufs.index(src)
+  #     try:
+  #       if opt_level >= 1 and src.op is Ops.CAST and src.dtype == tc.dtype_in: return self.bufs.index(src.src[0])
+  #     except ValueError: return None
+  #     return None
+  #   if (buf0:=buf_index(mul_op.src[0])) is None or (buf1:=buf_index(mul_op.src[1])) is None: return None
 
-    buf0_strides, buf1_strides = self.sts[buf0].real_strides(), self.sts[buf1].real_strides()
-    axis_buf0 = [(i,self.full_shape[i],buf1_strides[i]) for i,s in enumerate(buf0_strides[:self.first_reduce]) if s == 0]
-    axis_buf1 = [(i,self.full_shape[i],buf0_strides[i]) for i,s in enumerate(buf1_strides[:self.first_reduce]) if s == 0]
-    if not (axis_buf0 and axis_buf1 and ((self.shape_len-self.first_reduce) == 1 or (opt_level >= 1))): return None
+  #   buf0_strides, buf1_strides = self.sts[buf0].real_strides(), self.sts[buf1].real_strides()
+  #   axis_buf0 = [(i,self.full_shape[i],buf1_strides[i]) for i,s in enumerate(buf0_strides[:self.first_reduce]) if s == 0]
+  #   axis_buf1 = [(i,self.full_shape[i],buf0_strides[i]) for i,s in enumerate(buf1_strides[:self.first_reduce]) if s == 0]
+  #   if not (axis_buf0 and axis_buf1 and ((self.shape_len-self.first_reduce) == 1 or (opt_level >= 1))): return None
 
-    axis_choices = list(itertools.product(axis_buf0, axis_buf1, range(self.first_reduce, self.shape_len)))
-    if not (axis < len(axis_choices)): return None
+  #   axis_choices = list(itertools.product(axis_buf0, axis_buf1, range(self.first_reduce, self.shape_len)))
+  #   if not (axis < len(axis_choices)): return None
 
-    s0, s1, s2 = axis_choices[-(axis+1)][0][0], axis_choices[-(axis+1)][1][0], axis_choices[-(axis+1)][2]  # s0 is n, s1 is m, s2 is k
-    axis_pads = tuple((x, tc.dims[i]) for i, x in enumerate([s0, s1, s2]) if resolve(self.full_shape[x]%tc.dims[i] != 0))
-    if axis_pads and (opt_level < 2): return None
-    self.bufs_for_tensor_core[reduceop] = (buf0, buf1)
-    if DEBUG >= 3: print("TENSOR CORES", axis_buf0, axis_buf1, tc)
-    return TensorCoreOptions(axes=(s0, s1, s2), axes_exist=(True, True), axis_pads=axis_pads)
+  #   s0, s1, s2 = axis_choices[-(axis+1)][0][0], axis_choices[-(axis+1)][1][0], axis_choices[-(axis+1)][2]  # s0 is n, s1 is m, s2 is k
+  #   axis_pads = tuple((x, tc.dims[i]) for i, x in enumerate([s0, s1, s2]) if resolve(self.full_shape[x]%tc.dims[i] != 0))
+  #   if axis_pads and (opt_level < 2): return None
+  #   self.bufs_for_tensor_core[reduceop] = (buf0, buf1)
+  #   if DEBUG >= 3: print("TENSOR CORES", axis_buf0, axis_buf1, tc)
+  #   return TensorCoreOptions(axes=(s0, s1, s2), axes_exist=(True, True), axis_pads=axis_pads)
 
-  def _apply_tc_opt(self, use_tensor_cores:int, axis:int, opt_level:int) -> bool:
-    if use_tensor_cores and self.reduceop is not None and self.reduceop.arg[0] is Ops.ADD:
-      for tc in self.opts.tensor_cores:
-        tensor_core_opts = [self._create_tc_opts(reduceop, tc, axis, opt_level) for reduceop in self.reduceops]
-        # can only fuse reduces with the same tc options
-        assert all_same(tensor_core_opts)
-        if tensor_core_opts[0] is None: continue
-        # tensor core -- unroll the reduce dim, upcast input and local the correct thread pattern
-        self.tensor_core_opts = tc_opts = tensor_core_opts[0]
+  # def _apply_tc_opt(self, use_tensor_cores:int, axis:int, opt_level:int) -> bool:
+  #   if use_tensor_cores and self.reduceop is not None and self.reduceop.arg[0] is Ops.ADD:
+  #     for tc in self.opts.tensor_cores:
+  #       tensor_core_opts = [self._create_tc_opts(reduceop, tc, axis, opt_level) for reduceop in self.reduceops]
+  #       # can only fuse reduces with the same tc options
+  #       assert all_same(tensor_core_opts)
+  #       if tensor_core_opts[0] is None: continue
+  #       # tensor core -- unroll the reduce dim, upcast input and local the correct thread pattern
+  #       self.tensor_core_opts = tc_opts = tensor_core_opts[0]
 
-        # attempt to pad the tensor axes that require it
-        try:
-          for axis, dim in tc_opts.axis_pads: self.apply_opt(Opt(OptOps.PADTO, axis, dim), append_opt=False) # PADTO might fail
-        except KernelOptError: continue
-        for tc_dim, amt in tc.reduce_axes: self.apply_opt(Opt(OptOps.UNROLL,tc_opts.axes[2]-self.first_reduce,amt), append_opt=False)
-        for opt in tc.opts_seq:
-          if opt == "UP":
-            for tc_dim, amt in tc.early_upcast_axes: self.apply_opt(Opt(OptOps.UPCAST,tc_opts.axes[tc_dim],amt), append_opt=False)
-          elif opt == "LC":
-            for tc_dim, amt in tc.threads: self.apply_opt(Opt(OptOps.LOCAL,tc_opts.axes[tc_dim],amt), append_opt=False)
-        self.tensor_core = tc
-        self.use_tensor_cores = use_tensor_cores  # TC=2 will do the shape ops without the WMMA
-        return True
-    return False
+  #       # attempt to pad the tensor axes that require it
+  #       try:
+  #         for axis, dim in tc_opts.axis_pads: self.apply_opt(Opt(OptOps.PADTO, axis, dim), append_opt=False) # PADTO might fail
+  #       except KernelOptError: continue
+  #       for tc_dim, amt in tc.reduce_axes: self.apply_opt(Opt(OptOps.UNROLL,tc_opts.axes[2]-self.first_reduce,amt), append_opt=False)
+  #       for opt in tc.opts_seq:
+  #         if opt == "UP":
+  #           for tc_dim, amt in tc.early_upcast_axes: self.apply_opt(Opt(OptOps.UPCAST,tc_opts.axes[tc_dim],amt), append_opt=False)
+  #         elif opt == "LC":
+  #           for tc_dim, amt in tc.threads: self.apply_opt(Opt(OptOps.LOCAL,tc_opts.axes[tc_dim],amt), append_opt=False)
+  #       self.tensor_core = tc
+  #       self.use_tensor_cores = use_tensor_cores  # TC=2 will do the shape ops without the WMMA
+  #       return True
+  #   return False
 
   def apply_tensor_cores(self, use_tensor_cores=1, extra_opts:Optional[List[Opt]]=None, axis:int=0, tc_opt:Optional[int]=None) -> bool:
     """ Attempts to apply a tensor core optimization to the kernel.  If one exists and applies properly, return true, otherwise return false.

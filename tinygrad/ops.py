@@ -700,52 +700,6 @@ def track_rewrites(named=False):
     return __wrapper
   return _decorator
 
-class TrackedPatternMatcher(PatternMatcher):
-  def __init__(self, patterns:List[Tuple[UPat, Callable]]):
-    super().__init__(patterns)
-    for p,_ in self.patterns:
-      if p not in match_stats: match_stats[p] = [0,0,0.0,0.0]
-
-  def rewrite(self, uop:UOp, ctx=None) -> Optional[UOp]:
-    ret = None
-    ler = {u.op for u in uop.src}
-    for p,fxn,early_reject,has_ctx in self.pdict.get(uop.op, []):
-      st = time.perf_counter()
-      if not early_reject.issubset(ler):
-        match_stats[p][2] += time.perf_counter()-st
-        continue
-      match_stats[p][1] += 1
-      for match in p.match(uop, {}):
-        if (ret:=(fxn(ctx=ctx, **match) if has_ctx else fxn(**match))) is not None:
-          match_stats[p][0] += 1
-          match_stats[p][3] += (et:=time.perf_counter()-st)
-          if TRACK_MATCH_STATS >= 3: print(f"{et*1e6:7.2f} us -- ", p.printable())
-          if TRACK_MATCH_STATS >= 2 and len(rewrite_stack) != 0 and isinstance(ret, UOp): rewrite_stack[-1][1][-1].matches.append((uop, ret, p, et))
-          return ret # NOTE: if it returns None, we keep trying to match
-      match_stats[p][2] += time.perf_counter()-st
-    if TRACK_MATCH_STATS >= 2 and len(rewrite_stack) != 0: rewrite_stack[-1][1][-1].matches.append((uop, ret, None, 0))
-    return None
-
-if TRACK_MATCH_STATS:
-  PatternMatcher = TrackedPatternMatcher  # type: ignore
-  import atexit
-  @atexit.register
-  def print_match_stats():
-    if TRACK_MATCH_STATS >= 2:
-      with open(fn:=temp("rewrites.pkl"), "wb") as f:
-        print(f"rewrote {len(contexts)} graphs and matched {sum(len(r.matches) for _,x in contexts for r in x)} times, saved to {fn}")
-        pickle.dump(contexts, f)
-    if getenv("VIZ"):
-      os.environ["VIZ"] = "0"
-      os.execv(sys.executable, [sys.executable] + [os.path.join(os.path.dirname(__file__), ".", "viz", "serve.py"), temp("rewrites.pkl")])
-    if getenv("PRINT_MATCH_STATS", 1):
-      ret = [0,0,0.0,0.0]
-      for k,v in sorted(list(match_stats.items()), key=lambda x: x[1][2]+x[1][3]):
-        loc_str = f"{k.location[0].split('/')[-1]}:{k.location[1]}"
-        if v[1] != 0: print(f"{v[0]:6d} / {v[1]:7d} -- {v[3]*1000.:9.2f} / {(v[2]+v[3])*1000.:9.2f} ms -- {loc_str:15s}", k.printable())
-        ret = [x+y for x,y in zip(ret, v)]
-      print(f"{ret[0]:6d} / {ret[1]:7d} -- {ret[3]*1000.:9.2f} / {(ret[2]+ret[3])*1000.:9.2f} ms -- TOTAL")
-
 # *** simple graph rewrite engine ***
 
 class RewriteContext:

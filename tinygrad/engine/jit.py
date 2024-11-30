@@ -208,14 +208,14 @@ class TinyJit(Generic[ReturnType]):
   def add(self, ei:ExecItem):
     self._jit_cache.append(ExecItem(ei.prg, [self.add_buffer(buf) for buf in ei.bufs if buf is not None]))
 
-  def reset(self):
-    assert self.fxn is not None, "can't reset without function"
-    self.cnt = 0
-    self.captured = None
+  # def reset(self):
+  #   assert self.fxn is not None, "can't reset without function"
+  #   self.cnt = 0
+  #   self.captured = None
 
-  def __reduce__(self):
-    assert self.captured is not None, "can't pickle an uncaptured JIT"
-    return self.__class__, (None, self.captured)
+  # def __reduce__(self):
+  #   assert self.captured is not None, "can't pickle an uncaptured JIT"
+  #   return self.__class__, (None, self.captured)
 
   # keep legacy code working
   @property
