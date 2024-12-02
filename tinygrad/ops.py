@@ -565,7 +565,7 @@ class UPat(MathTrait):
     elif isinstance(src, tuple): self.src = [src]
     # repeat if it's a UPat
     elif isinstance(src, UPat): self.src = [itertools.repeat(src)]
-
+    print(f"Created with len {len(src)}")
     self.allowed_len: int = -1 if allow_any_len or isinstance(src, UPat) or src is None else len(src)
     self.location = location or get_location()
 
@@ -616,6 +616,13 @@ class UPat(MathTrait):
     return pretty_print(self, rep, srcfn=lambda x:None if x.src is None else [next(x.src[0])] if isinstance(x.src[0], itertools.repeat) else x.src[0])
 
   def match(self:UPat, uop:UOp, store:Dict[str, UOp]) -> List[Dict[str, UOp]]:
+    print((self.op is not None and uop.op not in self.op), \
+       (self.name is not None and store.setdefault(self.name, uop) is not uop), \
+       (self.dtype is not None and uop.dtype not in self.dtype and uop.dtype.scalar() not in self.dtype), \
+       (self.arg is not None and self.arg != uop.arg), \
+       (self.allowed_len != -1 and len(uop.src) != self.allowed_len),
+       self.allowed_len,len(uop.src)
+       )
     if (self.op is not None and uop.op not in self.op) or \
        (self.name is not None and store.setdefault(self.name, uop) is not uop) or \
        (self.dtype is not None and uop.dtype not in self.dtype and uop.dtype.scalar() not in self.dtype) or \
@@ -668,8 +675,12 @@ class PatternMatcher:
     ler = {u.op for u in uop.src}
     for p,fxn,early_reject,has_ctx in self.pdict.get(uop.op, []):
       if not early_reject.issubset(ler): continue
+      index = next((i for i, (pattern, _) in enumerate(self.patterns) if pattern == p), -1)
+      print(index)
       for match in p.match(uop, {}):
-        if (ret:=(fxn(ctx=ctx, **match) if has_ctx else fxn(**match))) is not None: return ret
+        ret = (fxn(ctx=ctx, **match) if has_ctx else fxn(**match))
+        print(f"Matched with {index}, returned {ret}")
+        if ret is not None: return ret
     return None
 
 # *** tracking pattern matcher ***
