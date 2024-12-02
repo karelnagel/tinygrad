@@ -673,9 +673,11 @@ class PatternMatcher:
   def rewrite(self, uop:UOp, ctx=None) -> Optional[UOp]:
     ler = {u.op for u in uop.src}
     for p,fxn,early_reject,has_ctx in self.pdict.get(uop.op, []):
-      if not early_reject.issubset(ler): continue
       index = next((i for i, (pattern, _) in enumerate(self.patterns) if pattern == p), -1)
       print(index)
+      if not early_reject.issubset(ler): 
+        print(f"{index} early rejected")
+        continue
       for match in p.match(uop, {}):
         ret = (fxn(ctx=ctx, **match) if has_ctx else fxn(**match))
         print(f"Matched with {index}, returned {ret}")
