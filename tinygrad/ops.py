@@ -620,7 +620,7 @@ class UPat(MathTrait):
        (self.dtype is not None and uop.dtype not in self.dtype and uop.dtype.scalar() not in self.dtype), \
        (self.arg is not None and self.arg != uop.arg), \
        (self.allowed_len != -1 and len(uop.src) != self.allowed_len),
-       self.allowed_len,len(uop.src)
+       self.allowed_len,len(uop.src), self.src is None
        )
     if (self.op is not None and uop.op not in self.op) or \
        (self.name is not None and store.setdefault(self.name, uop) is not uop) or \
