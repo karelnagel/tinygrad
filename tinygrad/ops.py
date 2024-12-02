@@ -565,7 +565,6 @@ class UPat(MathTrait):
     elif isinstance(src, tuple): self.src = [src]
     # repeat if it's a UPat
     elif isinstance(src, UPat): self.src = [itertools.repeat(src)]
-    print(f"Created with len {len(src)}")
     self.allowed_len: int = -1 if allow_any_len or isinstance(src, UPat) or src is None else len(src)
     self.location = location or get_location()
 
