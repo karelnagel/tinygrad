@@ -20,7 +20,7 @@ class _Device:
   @functools.lru_cache(maxsize=None)  # this class is a singleton, pylint: disable=method-cache-max-size-none
   def __get_canonicalized_item(self, ix:str) -> Compiled:
     cpn = multiprocessing.current_process().name
-    assert (cpn == "MainProcess") or ix.split(":")[0] in ["DISK", "NPY"], f"can only open device {ix} from parent, not {cpn}"
+    assert (cpn == "MainProcess") or ix.split(":")[0] in ["DISK", "NPY", "PYTHON"], f"can only open device {ix} from parent, not {cpn}"
     x = ix.split(":")[0].upper()
     ret = [cls for cname, cls in inspect.getmembers(importlib.import_module(f'{__name__.split(".")[0]}.runtime.ops_{x.lower()}')) \
            if (cname.lower() == x.lower() + "device")][0](ix)
@@ -214,7 +214,8 @@ def is_dtype_supported(dtype:DType, device:Optional[str]=None) -> bool:
   if dtype == dtypes.bfloat16:
     # NOTE: this requires bf16 buffer support
     return device in {"AMD"} or (device in {"CUDA", "NV"} and not CI and not getenv("PTX"))
-  if device in ["WEBGPU", "WEBGL"]: return dtype in [dtypes.float, dtypes.int32, dtypes.uint32]
+  if device == "WEBGPU": return dtype in [dtypes.bool, dtypes.char, dtypes.uchar, dtypes.short,
+                                          dtypes.ushort, dtypes.float, dtypes.int32, dtypes.uint32]
   # for CI GPU and OSX, cl_khr_fp16 isn't supported
   # for CI LLVM, it segfaults because it can't link to the casting function
   # CI CUDA architecture is sm_35 but we need at least sm_70 to run fp16 ALUs
