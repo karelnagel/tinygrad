@@ -134,25 +134,6 @@ class Timing(contextlib.ContextDecorator):
     if self.enabled: print(f"{self.prefix}{self.et*1e-6:6.2f} ms"+(self.on_exit(self.et) if self.on_exit else ""))
 
 def _format_fcn(fcn): return f"{fcn[0]}:{fcn[1]}:{fcn[2]}"
-class Profiling(contextlib.ContextDecorator):
-  def __init__(self, enabled=True, sort='cumtime', frac=0.2, fn=None, ts=1):
-    self.enabled, self.sort, self.frac, self.fn, self.time_scale = enabled, sort, frac, fn, 1e3/ts
-  def __enter__(self):
-    import cProfile
-    self.pr = cProfile.Profile()
-    if self.enabled: self.pr.enable()
-  def __exit__(self, *exc):
-    if self.enabled:
-      self.pr.disable()
-      if self.fn: self.pr.dump_stats(self.fn)
-      import pstats
-      stats = pstats.Stats(self.pr).strip_dirs().sort_stats(self.sort)
-      for fcn in stats.fcn_list[0:int(len(stats.fcn_list)*self.frac)]:    # type: ignore[attr-defined]
-        (_primitive_calls, num_calls, tottime, cumtime, callers) = stats.stats[fcn]    # type: ignore[attr-defined]
-        scallers = sorted(callers.items(), key=lambda x: -x[1][2])
-        print(f"n:{num_calls:8d}  tm:{tottime*self.time_scale:7.2f}ms  tot:{cumtime*self.time_scale:7.2f}ms",
-              colored(_format_fcn(fcn).ljust(50), "yellow"),
-              colored(f"<- {(scallers[0][1][2]/tottime)*100:3.0f}% {_format_fcn(scallers[0][0])}", "BLACK") if scallers else '')
 
 # *** universal database cache ***
 
@@ -192,19 +173,7 @@ def diskcache_get(table:str, key:Union[Dict, str, int]) -> Any:
 
 _db_tables = set()
 def diskcache_put(table:str, key:Union[Dict, str, int], val:Any):
-  if CACHELEVEL == 0: return val
-  if isinstance(key, (str,int)): key = {"key": key}
-  conn = db_connection()
-  cur = conn.cursor()
-  if table not in _db_tables:
-    TYPES = {str: "text", bool: "integer", int: "integer", float: "numeric", bytes: "blob"}
-    ltypes = ', '.join(f"{k} {TYPES[type(key[k])]}" for k in key.keys())
-    cur.execute(f"CREATE TABLE IF NOT EXISTS '{table}_{VERSION}' ({ltypes}, val blob, PRIMARY KEY ({', '.join(key.keys())}))")
-    _db_tables.add(table)
-  cur.execute(f"REPLACE INTO '{table}_{VERSION}' ({', '.join(key.keys())}, val) VALUES ({', '.join(['?']*len(key.keys()))}, ?)", tuple(key.values()) + (pickle.dumps(val), ))  # noqa: E501
-  conn.commit()
-  cur.close()
-  return val
+  pass
 
 def diskcache(func):
   def wrapper(*args, **kwargs) -> bytes:

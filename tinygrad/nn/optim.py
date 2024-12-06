@@ -55,49 +55,9 @@ class OptimizerGroup(Optimizer):
 
 # LARS is essentially just trust ratio to SGD so if we just set the trust coeff 0.0 its just standard SGD.
 def SGD(params: List[Tensor], lr=0.001, momentum=0.0, weight_decay=0.0, nesterov=False, classic=False):
-  """
-  Stochastic Gradient Descent (SGD) optimizer with optional momentum and weight decay.
-
-  `classic` is a boolean flag that determines whether to use the popular momentum update rule or the classic momentum update rule.
-
-  - Described: https://paperswithcode.com/method/sgd
-  """
-  return LARS(params, lr, momentum, weight_decay, nesterov, classic, tcoef=0.0)
-
+  pass
 class LARS(Optimizer):
-  """
-  Layer-wise Adaptive Rate Scaling (LARS) optimizer with optional momentum and weight decay.
-
-  - Described: https://paperswithcode.com/method/lars
-  - Paper: https://arxiv.org/abs/1708.03888v3
-  """
-  def __init__(self, params:List[Tensor], lr=0.001, momentum=0.9, weight_decay=1e-4, nesterov=False, classic=True, tcoef=0.001):
-    super().__init__(params, lr)
-    self.momentum, self.wd, self.nesterov, self.classic, self.tcoef = momentum, weight_decay, nesterov, classic, tcoef
-    self.b = [Tensor.zeros(*t.shape, dtype=t.dtype, device=t.device, requires_grad=False) for t in self.params] if self.momentum else []
-
-  def _step(self) -> List[Tensor]:
-    for i, t in enumerate(self.params):
-      assert t.grad is not None
-      # contiguous is needed since the grads can allegedly form a "diamond"
-      # TODO: fix this in lazy.py
-      g = t.grad.contiguous()
-      if self.tcoef != 0:
-        r1 = t.detach().square().sum().sqrt()
-        r2 = g.square().sum().sqrt()
-        r = (r1 > 0).where((r2 > 0).where(self.tcoef * r1 / (r2 + self.wd * r1), 1.0), 1.0)
-      else: r = 1.0
-      g = g + self.wd * t.detach()
-      # classic momentum does post learning rate update
-      if self.classic: g = g * r * self.lr
-      if self.momentum:
-        self.b[i].assign(self.momentum * self.b[i] + g)  # NOTE: self.b[i] is zero on the first run, no if required
-        g = (g + self.momentum * self.b[i]) if self.nesterov else self.b[i]
-      # popular momentum does pre learning rate update
-      if not self.classic: g = g * r * self.lr
-      t.assign((t.detach() - g).cast(t.dtype))
-    return self.b
-
+  pass
 # LAMB is essentially just the trust ratio part of LARS applied to Adam/W so if we just set the trust ratio to 1.0 its just Adam/W.
 def AdamW(params: List[Tensor], lr=0.001, b1=0.9, b2=0.999, eps=1e-8, weight_decay=0.01):
   """

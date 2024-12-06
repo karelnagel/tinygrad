@@ -70,68 +70,7 @@ def get_input_replace(jit_cache: List[ExecItem], input_rawbuffers:List[Buffer]) 
   return input_replace
 
 class GraphRunner(Runner):
-  def __init__(self, jit_cache: List[ExecItem], input_rawbuffers: List[Buffer], var_vals: Dict[Variable, int]):
-    self.jit_cache = jit_cache  # NOTE: this is not used, but you have to keep these objects alive for the Graph
-    self.input_replace:Dict[Tuple[int, int], int] = get_input_replace(jit_cache, input_rawbuffers)
-    self.var_vals_replace:Dict[int, List[int]] = {}
-    self.launch_dims_replace:Dict[int, Tuple[Optional[int], Optional[int]]] = {}
-    self.launch_dims_base:Dict[int, Tuple[Tuple[int, ...], Tuple[int, ...]]] = {}
-
-    op_estimate: sint = 0
-    mem_estimate: sint = 0
-    lds_estimate: sint = 0
-
-    def is_sym_dim(dim) -> bool: return not all(isinstance(d, (int, float)) for d in dim)
-
-    self.vars = sorted(var_vals.keys(), key=lambda v: v.expr)
-    self.symbolic_dims = dedup([tuple(d) for ji in jit_cache if isinstance(ji.prg, CompiledRunner) and (d:=ji.prg.p.local_size) and is_sym_dim(d)] +
-                               [tuple(d) for ji in jit_cache if isinstance(ji.prg, CompiledRunner) and (d:=ji.prg.p.global_size) and is_sym_dim(d)])
-    def find_symbolic_dim(dim): return self.symbolic_dims.index(tuple(dim)) if dim is not None and tuple(dim) in self.symbolic_dims else None
-
-    for j,ji in enumerate(jit_cache):
-      op_estimate += ji.prg.op_estimate
-      mem_estimate += ji.prg.mem_estimate
-      lds_estimate += ji.prg.lds_estimate
-      if isinstance(ji.prg, CompiledRunner):
-        if ji.prg.p.vars: self.var_vals_replace[j] = [self.vars.index(v) for v in ji.prg.p.vars]
-
-        global_dim_idx, local_dim_idx = find_symbolic_dim(ji.prg.p.global_size), find_symbolic_dim(ji.prg.p.local_size)
-        if global_dim_idx is not None or local_dim_idx is not None:
-          self.launch_dims_replace[j] = (global_dim_idx, local_dim_idx)
-          assert ji.prg.p.global_size is not None and ji.prg.p.local_size is not None
-          self.launch_dims_base[j] = (tuple(ji.prg.p.global_size), tuple(ji.prg.p.local_size))
-
-    # used in MultiGraphRunner. the ints are id() of _bufs
-    self.w_dependency_map: Dict[int, Any] = {}
-    self.r_dependency_map: Dict[int, List[Any]] = collections.defaultdict(list)
-
-    super().__init__(colored(f"<batched {len(jit_cache)}>", "cyan"), jit_cache[0].prg.device.split(":")[0],
-                     ssimplify(op_estimate), ssimplify(mem_estimate), ssimplify(lds_estimate))
-
-  def updated_vars(self, var_vals: Dict[Variable, int]):
-    vals = [var_vals[v] for v in self.vars]
-    for j, vidxs in self.var_vals_replace.items():
-      for i, v in enumerate(vidxs): yield j, i, vals[v]
-
-  def updated_launch_dims(self, var_vals: Dict[Variable, int]):
-    dims = [tuple(sym_infer(s, var_vals) for s in dim) for dim in self.symbolic_dims]
-    for j, (gl, lc) in self.launch_dims_replace.items():
-      yield j, (dims[gl] if gl is not None else self.launch_dims_base[j][0]), (dims[lc] if lc is not None else self.launch_dims_base[j][1])
-
-  def _access_resources(self, rawbufs:List[Buffer], write:List[int], new_dependency:Any):
-    # To synchronize access to resources, we monitor the necessary prerequisites for accessing each resource,
-    # whether for write or read operations. A resource can be accessed by either a single writer or multiple readers.
-    wait_nodes = []
-
-    for i,rawbuf in enumerate(rawbufs):
-      if id(rawbuf.base._buf) in self.w_dependency_map: wait_nodes.append(self.w_dependency_map[id(rawbuf.base._buf)])
-      if i in write:
-        if id(rawbuf.base._buf) in self.r_dependency_map: wait_nodes.extend(self.r_dependency_map.pop(id(rawbuf.base._buf)))
-        self.w_dependency_map[id(rawbuf.base._buf)] = new_dependency
-      else: self.r_dependency_map[id(rawbuf.base._buf)].append(new_dependency)
-
-    return list({id(x):x for x in wait_nodes}.values())
-
+  pass
 # a marker for your graph supporting multiple devices of the same type
 class MultiGraphRunner(GraphRunner): pass
 
@@ -262,20 +201,21 @@ class TinyJit(Generic[ReturnType]):
             extra_view_inputs.append((input_buffers.index(b.base), b.offset, b.device, b.size, b.dtype))
 
       # prune independent kernels (optional)
-      if self.prune:
-        depends = set(input_buffers)
-        for ei in jit_cache:
-          if any(b in depends for b in ei.bufs):
-            if isinstance(ei.prg, CompiledRunner):
-              depends.update(cast(Buffer, ei.bufs[out]) for out in ei.prg.p.outs)
-        pruned, onetime = partition(jit_cache,
-                                    lambda ei: not isinstance(ei.prg, CompiledRunner) or any(ei.bufs[out] in depends for out in ei.prg.p.outs))
-        if DEBUG >= 1: print(f"pruned from {len(jit_cache)} -> {len(pruned)} kernels")
-        # run the onetime kernels here
-        for ei in onetime:
-          for b in ei.bufs: cast(Buffer, b).ensure_allocated()
-          ei.run(var_vals, jit=True)
-        jit_cache = pruned
+      # TODO: not needed for mnist
+      # if self.prune:
+      #   depends = set(input_buffers)
+      #   for ei in jit_cache:
+      #     if any(b in depends for b in ei.bufs):
+      #       if isinstance(ei.prg, CompiledRunner):
+      #         depends.update(cast(Buffer, ei.bufs[out]) for out in ei.prg.p.outs)
+      #   pruned, onetime = partition(jit_cache,
+      #                               lambda ei: not isinstance(ei.prg, CompiledRunner) or any(ei.bufs[out] in depends for out in ei.prg.p.outs))
+      #   if DEBUG >= 1: print(f"pruned from {len(jit_cache)} -> {len(pruned)} kernels")
+      #   # run the onetime kernels here
+      #   for ei in onetime:
+      #     for b in ei.bufs: cast(Buffer, b).ensure_allocated()
+      #     ei.run(var_vals, jit=True)
+      #   jit_cache = pruned
 
       # memory planning (optional)
       # Exclude buffers involved in transfer ops to preserve parallelism.

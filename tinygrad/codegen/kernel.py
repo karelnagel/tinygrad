@@ -40,17 +40,6 @@ class Opt:
     if self.op in {OptOps.GROUP, OptOps.GROUPTOP}: return k.first_reduce+k.group_for_reduces+self.axis
     return self.axis
 
-@dataclass
-class TensorCoreOptions:
-  axes: Tuple[int, ...] # the location of the original N and M axes if still in the shape
-  axes_exist: Tuple[bool, ...] # true if the original N and M axes are still in the shape
-  axis_pads: Tuple[Tuple[int, int], ...]
-  def fix_axes(self, removed_axis:int): # adjust the TC axes if necesssary when a dimension is removed
-    axes, axes_exist = list(self.axes), list(self.axes_exist)
-    for tc_dim in [i for i in range(2) if axes_exist[i]]:
-      if removed_axis < axes[tc_dim]: axes[tc_dim] -= 1
-      elif removed_axis == axes[tc_dim]: axes_exist[tc_dim] = False
-    self.axes, self.axes_exist = tuple(axes), tuple(axes_exist)
 
 class Kernel:
   def __init__(self, ast:UOp, opts:Optional[Renderer]=None):
@@ -106,23 +95,6 @@ class Kernel:
     self.simplify_ones()
     self.simplify_merge_adjacent()
 
-  def copy(self):
-    ret = type(self).__new__(type(self))
-
-    # base linearizer params
-    ret.opts, ret.ast = self.opts, self.ast
-
-    # things downstream of the AST
-    ret.reduceops, ret.vars, ret.bufs, ret.full_buf_index = self.reduceops, self.vars, self.bufs, self.full_buf_index
-    ret.sts = self.sts[:len(ret.bufs)+len(ret.reduceops)*2] # NOTE: must redo the local buffers with TC in beam
-
-    # parameters for optimizations
-    ret.applied_opts, ret.group_for_reduces, ret.upcasted, ret.local_dims, ret.dont_use_locals = \
-      self.applied_opts[:], self.group_for_reduces, self.upcasted, self.local_dims, self.dont_use_locals
-    ret.tensor_core, ret.tensor_core_opts, ret.bufs_for_tensor_core, ret.use_tensor_cores = \
-      self.tensor_core, self.tensor_core_opts, self.bufs_for_tensor_core, self.use_tensor_cores
-
-    return ret
 
   @property
   def membufs(self) -> List[UOp]: return dedup([x.src[0] for x in self.bufs if x.op in {Ops.LOAD, Ops.STORE}])
@@ -158,9 +130,6 @@ class Kernel:
   @property
   def shape_len(self) -> int: return len(self.sts[0].shape)
 
-  @property
-  def upcast_in_mid_reduce_axes(self) -> List[int]:
-    return [j for j in range(self.first_reduce, self.first_reduce+self.group_for_reduces) if self.full_shape[j] == self.sts[0].shape[j]]
 
   @property
   def global_dims(self) -> int: return self.first_reduce-self.local_dims
@@ -189,11 +158,6 @@ class Kernel:
     assert len(colors) == self.shape_len, "colors size mismatch"
     return colors
 
-  def colored_shape(self, pad:Optional[int]=None, dense=False) -> str:
-    shape_strs = [(s if dense else f"{s:4d}") if isinstance(s, int) else s.render() for s in self.full_shape]
-    ret = ' '.join(colored(s, color) for s,color in zip(shape_strs, self.colors()))
-    if pad: ret += ' '*(pad-ansilen(ret))
-    return ret
 
   # ******************** base simplifiers ********************
 
@@ -271,61 +235,6 @@ class Kernel:
 
   # ******************** high level optimizers ********************
 
-  def _create_tc_opts(self, reduceop:UOp, tc:TensorCore, axis:int, opt_level:int) -> Optional[TensorCoreOptions]:
-    has_cast = tc.dtype_in != tc.dtype_out
-    if has_cast and not (reduceop.src[0].op is Ops.CAST and reduceop.src[0].dtype == tc.dtype_out): return None
-
-    mul_op = reduceop.src[0].src[0] if has_cast else reduceop.src[0]
-    if mul_op.op is not Ops.MUL: return None
-
-    def buf_index(src:UOp) -> Optional[int]:
-      # TODO: apply tc even if the sources are not from LOAD
-      if src.op is Ops.LOAD and src.dtype == tc.dtype_in: return self.bufs.index(src)
-      try:
-        if opt_level >= 1 and src.op is Ops.CAST and src.dtype == tc.dtype_in: return self.bufs.index(src.src[0])
-      except ValueError: return None
-      return None
-    if (buf0:=buf_index(mul_op.src[0])) is None or (buf1:=buf_index(mul_op.src[1])) is None: return None
-
-    buf0_strides, buf1_strides = self.sts[buf0].real_strides(), self.sts[buf1].real_strides()
-    axis_buf0 = [(i,self.full_shape[i],buf1_strides[i]) for i,s in enumerate(buf0_strides[:self.first_reduce]) if s == 0]
-    axis_buf1 = [(i,self.full_shape[i],buf0_strides[i]) for i,s in enumerate(buf1_strides[:self.first_reduce]) if s == 0]
-    if not (axis_buf0 and axis_buf1 and ((self.shape_len-self.first_reduce) == 1 or (opt_level >= 1))): return None
-
-    axis_choices = list(itertools.product(axis_buf0, axis_buf1, range(self.first_reduce, self.shape_len)))
-    if not (axis < len(axis_choices)): return None
-
-    s0, s1, s2 = axis_choices[-(axis+1)][0][0], axis_choices[-(axis+1)][1][0], axis_choices[-(axis+1)][2]  # s0 is n, s1 is m, s2 is k
-    axis_pads = tuple((x, tc.dims[i]) for i, x in enumerate([s0, s1, s2]) if resolve(self.full_shape[x]%tc.dims[i] != 0))
-    if axis_pads and (opt_level < 2): return None
-    self.bufs_for_tensor_core[reduceop] = (buf0, buf1)
-    if DEBUG >= 3: print("TENSOR CORES", axis_buf0, axis_buf1, tc)
-    return TensorCoreOptions(axes=(s0, s1, s2), axes_exist=(True, True), axis_pads=axis_pads)
-
-  def _apply_tc_opt(self, use_tensor_cores:int, axis:int, opt_level:int) -> bool:
-    if use_tensor_cores and self.reduceop is not None and self.reduceop.arg[0] is Ops.ADD:
-      for tc in self.opts.tensor_cores:
-        tensor_core_opts = [self._create_tc_opts(reduceop, tc, axis, opt_level) for reduceop in self.reduceops]
-        # can only fuse reduces with the same tc options
-        assert all_same(tensor_core_opts)
-        if tensor_core_opts[0] is None: continue
-        # tensor core -- unroll the reduce dim, upcast input and local the correct thread pattern
-        self.tensor_core_opts = tc_opts = tensor_core_opts[0]
-
-        # attempt to pad the tensor axes that require it
-        try:
-          for axis, dim in tc_opts.axis_pads: self.apply_opt(Opt(OptOps.PADTO, axis, dim), append_opt=False) # PADTO might fail
-        except KernelOptError: continue
-        for tc_dim, amt in tc.reduce_axes: self.apply_opt(Opt(OptOps.UNROLL,tc_opts.axes[2]-self.first_reduce,amt), append_opt=False)
-        for opt in tc.opts_seq:
-          if opt == "UP":
-            for tc_dim, amt in tc.early_upcast_axes: self.apply_opt(Opt(OptOps.UPCAST,tc_opts.axes[tc_dim],amt), append_opt=False)
-          elif opt == "LC":
-            for tc_dim, amt in tc.threads: self.apply_opt(Opt(OptOps.LOCAL,tc_opts.axes[tc_dim],amt), append_opt=False)
-        self.tensor_core = tc
-        self.use_tensor_cores = use_tensor_cores  # TC=2 will do the shape ops without the WMMA
-        return True
-    return False
 
   def apply_tensor_cores(self, use_tensor_cores=1, extra_opts:Optional[List[Opt]]=None, axis:int=0, tc_opt:Optional[int]=None) -> bool:
     """ Attempts to apply a tensor core optimization to the kernel.  If one exists and applies properly, return true, otherwise return false.
@@ -342,26 +251,7 @@ class Kernel:
       1: allows kernels with multiple reduce axes and also multiplication of UOps.CAST'd buffers
       2: allows kernels with M, N, K axes that are not multiples of the tensor core dimensions by applying padding those axes as needed
     """
-    if tc_opt is None: tc_opt = TC_OPT.value
-    if not self.opts.tensor_cores and use_tensor_cores != 2: return False
-    try: # check TC first and apply hand-coded opts if successful
-      self.apply_opt(Opt(OptOps.TC, axis, tc_opt))
-
-      if (tc_opts:=self.tensor_core_opts) is not None:
-        if extra_opts is not None:
-          for opt in extra_opts: self.apply_opt(opt)
-        else:
-          if (self.opts.device == "CLANG" and AMX): return True # skip hand-coded TC opts if AMX, upcasting will make kernel slower
-          # hand-coded TC opts
-          for tc_dim in [tc_dim for tc_dim in [1,0] if tc_opts.axes_exist[tc_dim]]: # attempt to upcast M and N
-            szs = [sz for sz in [5,4,3,2] if self.full_shape[tc_opts.axes[tc_dim]] % sz == 0]
-            if szs: self.apply_opt(Opt(OptOps.UPCAST, tc_opts.axes[tc_dim], szs[0]))
-
-          if tc_opts.axes_exist[0] and (szs := [sz for sz in [4,2] if self.full_shape[tc_opts.axes[0]] % sz == 0]): # attempt to local N
-            self.apply_opt(Opt(OptOps.LOCAL, tc_opts.axes[0], szs[0]))
-      return True
-    except KernelOptError:
-      return False
+    return False
 
   def apply_opt(self, opt:Opt, append_opt:bool=True):
     if self.dont_use_locals: check(opt.op not in {OptOps.LOCAL, OptOps.GROUP, OptOps.GROUPTOP, OptOps.UPCASTMID}, "not using locals")
@@ -622,49 +512,50 @@ class Kernel:
         axes = reduced_axes(self.first_reduce + self.group_for_reduces, self.shape_len)
         grouped_axes = reduced_axes(self.first_reduce, self.first_reduce + self.group_for_reduces)
 
-        if (tc := self.tensor_core) and (self.use_tensor_cores == 1 or self.use_tensor_cores == 3):
-          def fix_st(st: ShapeTracker, wd_pattern, tcd_pattern):
-            st = ShapeTracker.from_shape(st.shape) # st needs to be contiguous
-            wd, warp_dims = self.global_dims,  tuple(sz for _, sz in tc.threads)
-            tcd, tcd_dims = self.first_upcast, tuple(sz for _, sz in tc.reduce_axes + tc.early_upcast_axes)
+      # TODO not needed for mnist
+        # if (tc := self.tensor_core) and (self.use_tensor_cores == 1 or self.use_tensor_cores == 3):
+        #   def fix_st(st: ShapeTracker, wd_pattern, tcd_pattern):
+        #     st = ShapeTracker.from_shape(st.shape) # st needs to be contiguous
+        #     wd, warp_dims = self.global_dims,  tuple(sz for _, sz in tc.threads)
+        #     tcd, tcd_dims = self.first_upcast, tuple(sz for _, sz in tc.reduce_axes + tc.early_upcast_axes)
 
-            assert st.shape[wd:wd+len(warp_dims)] == warp_dims, f"warp dims wrong: {st.shape[wd:wd+len(warp_dims)]=} != {warp_dims=}"
-            assert st.shape[tcd:tcd+len(tcd_dims)] == tcd_dims, f"tcd dims wrong: {st.shape[tcd:tcd+len(tcd_dims)]=} != {tcd_dims=}"
-            assert tc.expanded_shape is not None
+        #     assert st.shape[wd:wd+len(warp_dims)] == warp_dims, f"warp dims wrong: {st.shape[wd:wd+len(warp_dims)]=} != {warp_dims=}"
+        #     assert st.shape[tcd:tcd+len(tcd_dims)] == tcd_dims, f"tcd dims wrong: {st.shape[tcd:tcd+len(tcd_dims)]=} != {tcd_dims=}"
+        #     assert tc.expanded_shape is not None
 
-            new_shape = st.shape[:tcd] + tc.expanded_shape + st.shape[tcd+len(tcd_dims):]  # expand the tcd
-            permaxis = list(range(wd)) + [y + (wd if x == 0 else tcd) for x,y in wd_pattern]  + list(range(wd+len(warp_dims),tcd)) + \
-                                         [y + (wd if x == 0 else tcd) for x,y in tcd_pattern] + list(range(tcd+len(tc.expanded_shape),len(new_shape)))
-            return st.reshape(new_shape).permute(tuple(permaxis)).reshape(st.shape).simplify()
+        #     new_shape = st.shape[:tcd] + tc.expanded_shape + st.shape[tcd+len(tcd_dims):]  # expand the tcd
+        #     permaxis = list(range(wd)) + [y + (wd if x == 0 else tcd) for x,y in wd_pattern]  + list(range(wd+len(warp_dims),tcd)) + \
+        #                                  [y + (wd if x == 0 else tcd) for x,y in tcd_pattern] + list(range(tcd+len(tc.expanded_shape),len(new_shape)))
+        #     return st.reshape(new_shape).permute(tuple(permaxis)).reshape(st.shape).simplify()
 
-          srcs = list((ret.src[0] if ret.src[0].op is not Ops.CAST else ret.src[0].src[0]).src)
-          for i, tc_pattern in enumerate([tc.st1_pattern, tc.st2_pattern]):
-            if tc_pattern: srcs[i] = srcs[i].view(fix_st(srcs[i].st_arg if srcs[i].op is Ops.LOAD else srcs[i].src[0].st_arg, *tc_pattern))
+        #   srcs = list((ret.src[0] if ret.src[0].op is not Ops.CAST else ret.src[0].src[0]).src)
+        #   for i, tc_pattern in enumerate([tc.st1_pattern, tc.st2_pattern]):
+        #     if tc_pattern: srcs[i] = srcs[i].view(fix_st(srcs[i].st_arg if srcs[i].op is Ops.LOAD else srcs[i].src[0].st_arg, *tc_pattern))
 
-            if self.use_tensor_cores == 3:  # for TC=3, emulate the warp addressing with locals
-              local_shape = tuple(1 if i >= self.first_reduce and i < self.first_upcast else s for i, s in enumerate(self.full_shape))
-              st = store_st = ShapeTracker.from_shape(local_shape)
-              local_buffer = UOp(Ops.DEFINE_LOCAL, tc.dtype_in.ptr(local=True), (), (f"temp{i + 1}", st.real_size()))
-              if tc_pattern: store_st = fix_st(store_st, *tc_pattern)
-              local_store = UOp.store(local_buffer, store_st.to_uop(), srcs[i])
-              srcs[i] = UOp(Ops.LOAD, tc.dtype_in, (local_buffer, st.to_uop(), local_store))
+        #     if self.use_tensor_cores == 3:  # for TC=3, emulate the warp addressing with locals
+        #       local_shape = tuple(1 if i >= self.first_reduce and i < self.first_upcast else s for i, s in enumerate(self.full_shape))
+        #       st = store_st = ShapeTracker.from_shape(local_shape)
+        #       local_buffer = UOp(Ops.DEFINE_LOCAL, tc.dtype_in.ptr(local=True), (), (f"temp{i + 1}", st.real_size()))
+        #       if tc_pattern: store_st = fix_st(store_st, *tc_pattern)
+        #       local_store = UOp.store(local_buffer, store_st.to_uop(), srcs[i])
+        #       srcs[i] = UOp(Ops.LOAD, tc.dtype_in, (local_buffer, st.to_uop(), local_store))
 
-          tc_reduce_axes = tuple(self.first_upcast + ax for ax, _ in tc.reduce_axes)
-          if self.use_tensor_cores == 1: # real WMMA, use CONTRACT/EXPAND to get the vectorization right
-            upcast_axes = tuple(tuple((self.first_upcast + ax, sz) for ax, sz in up) for up in tc.upcast_axes)
-            wmma_arg = (str(tc), tc.dims, tc.dtype_in, tc.dtype_out, self.opts.device, prod(sz for _, sz in tc.threads), upcast_axes, tc_reduce_axes)
-            wmma_sz = [prod(x[1] for x in l) for l in upcast_axes]
-            wmma = UOp(Ops.WMMA, dtype=tc.dtype_out.vec(wmma_sz[2]), src=(
-              UOp(Ops.CONTRACT, dtype=srcs[0].dtype.vec(wmma_sz[0]), src=(srcs[0],), arg=upcast_axes[0]),
-              UOp(Ops.CONTRACT, dtype=srcs[1].dtype.vec(wmma_sz[1]), src=(srcs[1],), arg=upcast_axes[1]),
-              UOp.const(tc.dtype_out.vec(wmma_sz[2]), 0.0)), arg=wmma_arg)
-            tc_uop = UOp(Ops.EXPAND, tc.dtype_out, (wmma,), arg=upcast_axes[2])
+        #   tc_reduce_axes = tuple(self.first_upcast + ax for ax, _ in tc.reduce_axes)
+        #   if self.use_tensor_cores == 1: # real WMMA, use CONTRACT/EXPAND to get the vectorization right
+        #     upcast_axes = tuple(tuple((self.first_upcast + ax, sz) for ax, sz in up) for up in tc.upcast_axes)
+        #     wmma_arg = (str(tc), tc.dims, tc.dtype_in, tc.dtype_out, self.opts.device, prod(sz for _, sz in tc.threads), upcast_axes, tc_reduce_axes)
+        #     wmma_sz = [prod(x[1] for x in l) for l in upcast_axes]
+        #     wmma = UOp(Ops.WMMA, dtype=tc.dtype_out.vec(wmma_sz[2]), src=(
+        #       UOp(Ops.CONTRACT, dtype=srcs[0].dtype.vec(wmma_sz[0]), src=(srcs[0],), arg=upcast_axes[0]),
+        #       UOp(Ops.CONTRACT, dtype=srcs[1].dtype.vec(wmma_sz[1]), src=(srcs[1],), arg=upcast_axes[1]),
+        #       UOp.const(tc.dtype_out.vec(wmma_sz[2]), 0.0)), arg=wmma_arg)
+        #     tc_uop = UOp(Ops.EXPAND, tc.dtype_out, (wmma,), arg=upcast_axes[2])
 
-          else: # for TC=3 MUL/SUM instead of WMMA
-            tc_uop = UOp(Ops.REDUCE_AXIS, tc.dtype_out, ((srcs[0] * srcs[1]).cast(tc.dtype_out),), (Ops.ADD, tc_reduce_axes))
+        #   else: # for TC=3 MUL/SUM instead of WMMA
+        #     tc_uop = UOp(Ops.REDUCE_AXIS, tc.dtype_out, ((srcs[0] * srcs[1]).cast(tc.dtype_out),), (Ops.ADD, tc_reduce_axes))
 
-          new_reduce_axes = tuple(i for i in axes if i not in tc_reduce_axes)
-          return ret.replace(src=(tc_uop,), arg=(Ops.ADD, new_reduce_axes)) if new_reduce_axes else tc_uop
+        #   new_reduce_axes = tuple(i for i in axes if i not in tc_reduce_axes)
+        #   return ret.replace(src=(tc_uop,), arg=(Ops.ADD, new_reduce_axes)) if new_reduce_axes else tc_uop
 
         ret = ret.replace(arg = (op.arg[0], axes))
         if self.group_for_reduces and grouped_axes:

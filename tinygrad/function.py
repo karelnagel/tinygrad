@@ -72,13 +72,7 @@ class Sqrt(Function):
 # https://towardsdatascience.com/derivative-of-the-sigmoid-function-536880cf918e
 # TODO: have the backend automatically find this
 class Sigmoid(Function):
-  def forward(self, x:LazyBuffer) -> LazyBuffer:
-    self.ret = (1 + (x * (-1/math.log(2))).exp2()).reciprocal()
-    return self.ret
-
-  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
-    return (self.ret * (1 - self.ret)) * grad_output
-
+  pass
 class Sign(Function):
   def forward(self, x:LazyBuffer) -> LazyBuffer: return x.ne(0).where((x<0).where(x.const_like(-1), x.const_like(1)), x.const_like(0))
   # backward always return 0 to match torch
@@ -147,13 +141,7 @@ class Sum(Function):
   def backward(self, grad_output:LazyBuffer) -> LazyBuffer: return grad_output.expand(self.input_shape)
 
 class Prod(Function):
-  def forward(self, x:LazyBuffer, axis:Tuple[int, ...]) -> LazyBuffer:
-    self.x, self.ret = x, x.r(Ops.MUL, axis)
-    return self.ret
-
-  def backward(self, grad_output:LazyBuffer) -> LazyBuffer:
-    return (grad_output * self.ret).expand(self.x.shape) / self.x
-
+  pass
 class Max(Function):
   def forward(self, x:LazyBuffer, axis:Tuple[int, ...]) -> LazyBuffer:
     self.x, self.ret, self.axis = x, x.r(Ops.MAX, axis), axis
