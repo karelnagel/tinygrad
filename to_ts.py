@@ -1,5 +1,5 @@
 import itertools
-from tinygrad.ops import FastEnum, Ops, UOp, UPat
+from tinygrad.ops import FastEnum, KernelInfo, UOp, UPat
 from tinygrad.codegen.lowerer import IndexContext
 from tinygrad.dtype import DType, ImageDType, PtrDType
 from tinygrad.shape.shapetracker import ShapeTracker
@@ -29,14 +29,21 @@ def to_ts(o):
     if isinstance(o, ShapeTracker):
         return f"new ShapeTracker({to_ts(o.views)})"
     if isinstance(o, IndexContext):
-        return f"new IndexContext({to_ts(o.idxs)}, {to_ts(o.ridxs)}, {to_ts(o.acc_num)})"
-    if isinstance(o,ClangRenderer):
+        return (
+            f"new IndexContext({to_ts(o.idxs)}, {to_ts(o.ridxs)}, {to_ts(o.acc_num)})"
+        )
+    if isinstance(o, ClangRenderer):
         return f"new ClangRenderer()"
     if isinstance(o, Opt):
-        return f"new Opt({o.op}, {o.axis}, {o.amt})"
+        return f"new Opt({to_ts(o.op)}, {to_ts(o.axis)}, {to_ts(o.amt)})"
     if isinstance(o, Kernel):
-        return f"new Kernel({o.ast}, {o.opts})"
+        return f"new Kernel({to_ts(o.ast)}, {to_ts(o.opts)})"
+    if isinstance(o, KernelInfo):
+        return f"new KernelInfo({to_ts(o.local_dims)}, {to_ts(o.upcasted)}, {to_ts(o.dont_use_locals)})"
 
+    if hasattr(o, "__dataclass_fields__"):
+        fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
+        return f"{{ {', '.join(f'{k}:{to_ts(v)}' for k,v in fields.items())} }}"
     if isinstance(o, itertools.repeat):
         return to_ts(next(o))
     if callable(o):
