@@ -1,14 +1,15 @@
 import itertools
-from tinygrad.ops import FastEnum, KernelInfo, UOp, UPat
-from tinygrad.codegen.lowerer import IndexContext
-from tinygrad.dtype import DType, ImageDType, PtrDType
-from tinygrad.shape.shapetracker import ShapeTracker
-from tinygrad.shape.view import View
-from tinygrad.renderer.cstyle import ClangRenderer
-from tinygrad.codegen.kernel import Kernel, Opt
 
 
 def to_ts(o):
+    from tinygrad.ops import FastEnum, KernelInfo, UOp, UPat
+    from tinygrad.codegen.lowerer import IndexContext
+    from tinygrad.dtype import DType, ImageDType, PtrDType
+    from tinygrad.shape.shapetracker import ShapeTracker
+    from tinygrad.shape.view import View
+    from tinygrad.renderer.cstyle import ClangRenderer
+    from tinygrad.codegen.kernel import Kernel, Opt
+
     if isinstance(o, FastEnum):
         return f"{o.value}"
     if isinstance(o, UPat):
@@ -69,3 +70,15 @@ def to_ts(o):
             f"new Map([{', '.join(f'[{to_ts(k)}, {to_ts(v)}]' for k,v in o.items())}])"
         )
     return str(o)
+
+
+global_inputs = {}
+
+
+def save_input(fn_name, input):
+    ts = to_ts(input)
+    fn_inputs: set = global_inputs.setdefault(fn_name, set())
+    if ts not in fn_inputs and len(fn_inputs) < 20:
+        fn_inputs.add(ts)
+        with open(f"input_{fn_name}.txt", "w") as f:
+            f.write(",\n".join(list(fn_inputs)) + "\n")
