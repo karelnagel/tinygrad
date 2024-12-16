@@ -10,6 +10,7 @@ def to_ts(o):
     from tinygrad.renderer.cstyle import ClangRenderer
     from tinygrad.codegen.kernel import Kernel, Opt
     from tinygrad.codegen.linearize import BasicBlock
+    from tinygrad.renderer import ProgramSpec, TensorCore
 
     if isinstance(o, FastEnum):
         return f"{o.value}"
@@ -44,6 +45,10 @@ def to_ts(o):
         return f"new KernelInfo({to_ts(o.local_dims)}, {to_ts(o.upcasted)}, {to_ts(o.dont_use_locals)})"
     if isinstance(o, BasicBlock):
         return f"new BasicBlock({to_ts(o.ctx)}, {to_ts(o.lst)}, {to_ts(o.end)})"
+    if isinstance(o, TensorCore):
+        return f"new TensorCore({{ dims:{to_ts(o.dims)}, threads:{to_ts(o.threads)}, reduce_axes:{to_ts(o.reduce_axes)}, upcast_axes:{to_ts(o.upcast_axes)}, dtype_in:{to_ts(o.dtype_in)}, dtype_out:{to_ts(o.dtype_out)} }})"
+    if isinstance(o, ProgramSpec):
+        return f"new ProgramSpec({{ name:{to_ts(o.name)}, src:{to_ts(o.src)}, device:{to_ts(o.device)}, uops:{to_ts(o.uops)}, mem_estimate:{to_ts(o.mem_estimate)}, global_size:{to_ts(o.global_size)}, local_size:{to_ts(o.local_size)}, vars:{to_ts(o.vars)}, globals:{to_ts(o.globals)}, outs:{to_ts(o.outs)} }})"
 
     if hasattr(o, "__dataclass_fields__"):
         fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
@@ -76,6 +81,7 @@ def to_ts(o):
 
 
 global_inputs = {}
+
 
 def save_input(fn_name, input):
     ts = to_ts(input)
