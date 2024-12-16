@@ -9,6 +9,7 @@ def to_ts(o):
     from tinygrad.shape.view import View
     from tinygrad.renderer.cstyle import ClangRenderer
     from tinygrad.codegen.kernel import Kernel, Opt
+    from tinygrad.codegen.linearize import BasicBlock
 
     if isinstance(o, FastEnum):
         return f"{o.value}"
@@ -41,6 +42,8 @@ def to_ts(o):
         return f"new Kernel({to_ts(o.ast)}, {to_ts(o.opts)})"
     if isinstance(o, KernelInfo):
         return f"new KernelInfo({to_ts(o.local_dims)}, {to_ts(o.upcasted)}, {to_ts(o.dont_use_locals)})"
+    if isinstance(o, BasicBlock):
+        return f"new BasicBlock({to_ts(o.ctx)}, {to_ts(o.lst)}, {to_ts(o.end)})"
 
     if hasattr(o, "__dataclass_fields__"):
         fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
@@ -74,11 +77,17 @@ def to_ts(o):
 
 global_inputs = {}
 
-
 def save_input(fn_name, input):
     ts = to_ts(input)
     fn_inputs: set = global_inputs.setdefault(fn_name, set())
-    if ts not in fn_inputs and len(fn_inputs) < 20:
-        fn_inputs.add(ts)
+    if ts not in fn_inputs:
+        if len(fn_inputs) >= 6:
+            # Remove longest string if new one is shorter
+            longest = max(fn_inputs, key=len)
+            if len(ts) < len(longest):
+                fn_inputs.remove(longest)
+                fn_inputs.add(ts)
+        else:
+            fn_inputs.add(ts)
         with open(f"input_{fn_name}.txt", "w") as f:
-            f.write(",\n".join(list(fn_inputs)) + "\n")
+            f.write(",\n".join(sorted(fn_inputs, key=len)) + "\n")
