@@ -96,7 +96,7 @@ def to_ts(o):
 
     # ************ ENGINE ************
     if isinstance(o, LazyBuffer):
-        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(o.op) if hasattr(o, 'op') else 'undefined'}, {to_ts(o.arg) if hasattr(o, 'arg') else 'undefined'}, {to_ts(o.srcs) if hasattr(o, 'srcs') else '[]'}, {to_ts(o._base)}, {to_ts(o.metadata)})"
+        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(o.op if hasattr(o, 'op') else None)}, {to_ts(o.arg if hasattr(o, 'arg') else None)}, {to_ts(o.srcs) if hasattr(o, 'srcs') else '[]'}, {to_ts(o._base)}, {to_ts(o.metadata)})"
 
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner()"
