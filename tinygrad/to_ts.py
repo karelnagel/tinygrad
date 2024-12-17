@@ -12,6 +12,7 @@ def to_ts(o):
     from tinygrad.codegen.kernel import Kernel, Opt
     from tinygrad.codegen.linearize import BasicBlock
     from tinygrad.renderer import ProgramSpec, TensorCore
+    from tinygrad.helpers import Metadata
     from tinygrad.device import (
         _Device,
         _MallocAllocator,
@@ -95,7 +96,7 @@ def to_ts(o):
 
     # ************ ENGINE ************
     if isinstance(o, LazyBuffer):
-        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(o.op)}, {to_ts(o.arg)}, {to_ts(o.srcs)}, {to_ts(o._base)}, {to_ts(o.metadata)})"
+        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(o.op) if hasattr(o, 'op') else 'undefined'}, {to_ts(o.arg) if hasattr(o, 'arg') else 'undefined'}, {to_ts(o.srcs) if hasattr(o, 'srcs') else '[]'}, {to_ts(o._base)}, {to_ts(o.metadata)})"
 
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner()"
@@ -111,6 +112,9 @@ def to_ts(o):
     if isinstance(o, ScheduleItemContext):
         return f"new ScheduleItemContext({to_ts(o.lazybufs)}, {to_ts(o.ops_metadata)}, {to_ts(o.assigns)}, {to_ts(o.var_vals)}, {to_ts(o.sinked)}, {to_ts(o.sts)}, {to_ts(o.bufs)}, {to_ts(o.metadata)}, {to_ts(o.assign_adj)})"
 
+    if isinstance(o, Metadata):
+        return f"new Metadata({to_ts(o.name)}, {to_ts(o.caller)}, {to_ts(o.backward)})"
+    
     # if hasattr(o, "__dataclass_fields__"):
     #     fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
     #     return f"{{ {', '.join(f'{k}:{to_ts(v)}' for k,v in fields.items())} }}"
