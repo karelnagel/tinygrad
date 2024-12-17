@@ -31,7 +31,7 @@ def to_ts(o):
     )
 
     if isinstance(o, Enum):
-        return f"{o.value}"
+        return f"{o.__class__.__name__ }.{o.name}"
 
     # ************ OPS ************
     if isinstance(o, UPat):
