@@ -281,6 +281,26 @@ class Tensor(SimpleMathTrait):
     if self.grad is not None: ret.grad = self.grad.to(device)
     if hasattr(self, '_ctx'): ret._ctx = self._ctx
     return ret
+  
+  @staticmethod
+  def _metaop(op, shape, device:Optional[Union[Tuple[str, ...], str]]=None, dtype:Optional[DTypeLike]=None, arg=None, **kwargs):
+    dtype = to_dtype(dtype) if dtype is not None else dtypes.default_float
+    return Tensor(LazyBuffer.metaop(op, shape, dtype, Device.canonicalize(device), arg), device, dtype, **kwargs)
+
+  @staticmethod
+  def empty(*shape, **kwargs):
+    """
+    Creates an empty tensor with the given shape.
+
+    You can pass in `dtype` and `device` keyword arguments to control the data type and device of the tensor.
+    Additionally, all other keyword arguments are passed to the constructor of the tensor.
+
+    ```python exec="true" source="above" session="tensor" result="python"
+    t = Tensor.empty(2, 3)
+    print(t.shape)
+    ```
+    """
+    return Tensor._metaop(Ops.EMPTY, argfix(*shape), **kwargs)
 
   @staticmethod
   def from_url(url:str, gunzip:bool=False, **kwargs) -> Tensor:

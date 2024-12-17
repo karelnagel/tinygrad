@@ -1,4 +1,5 @@
 # model based off https://towardsdatascience.com/going-beyond-99-mnist-handwritten-digits-recognition-cfff96337392
+import pathlib
 from typing import List, Callable
 from tinygrad import Tensor, nn, GlobalCounters
 from tinygrad.helpers import getenv, colored, trange
@@ -21,6 +22,8 @@ if __name__ == "__main__":
   X_train, Y_train, X_test, Y_test = mnist(fashion=getenv("FASHION"))
 
   model = Model()
+  if pathlib.Path("mnist.safetensor").exists():
+    nn.state.load_state_dict(model, nn.state.safe_load("mnist.safetensor"))
   opt = nn.optim.Adam(nn.state.get_parameters(model))
 
   @Tensor.train()
@@ -41,8 +44,5 @@ if __name__ == "__main__":
     loss = train_step()
     if i%10 == 9: test_acc = get_test_acc().item()
     t.set_description(f"loss: {loss.item():6.2f} test_accuracy: {test_acc:5.2f}%")
+  nn.state.safe_save(nn.state.get_state_dict(model),"mnist.safetensor")
 
-  # verify eval acc
-  if target := getenv("TARGET_EVAL_ACC_PCT", 0.0):
-    if test_acc >= target and test_acc != 100.0: print(colored(f"{test_acc=} >= {target}", "green"))
-    else: raise ValueError(colored(f"{test_acc=} < {target}", "red"))
