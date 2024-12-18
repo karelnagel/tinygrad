@@ -22,8 +22,9 @@ if __name__ == "__main__":
   X_train, Y_train, X_test, Y_test = mnist(fashion=getenv("FASHION"))
 
   model = Model()
-  if pathlib.Path("mnist.safetensor").exists():
-    nn.state.load_state_dict(model, nn.state.safe_load("mnist.safetensor"))
+  path = "model.safetensors"
+  if pathlib.Path(path).exists():
+    nn.state.load_state_dict(model, nn.state.safe_load(path))
   opt = nn.optim.Adam(nn.state.get_parameters(model))
 
   @Tensor.train()
@@ -44,5 +45,5 @@ if __name__ == "__main__":
     loss = train_step()
     if i%10 == 9: test_acc = get_test_acc().item()
     t.set_description(f"loss: {loss.item():6.2f} test_accuracy: {test_acc:5.2f}%")
-  nn.state.safe_save(nn.state.get_state_dict(model),"mnist.safetensor")
+  nn.state.safe_save(nn.state.get_state_dict(model), path)
 
