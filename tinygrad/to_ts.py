@@ -84,7 +84,7 @@ def to_ts(o):
     if isinstance(o, BufferSpec):
         return f"new BufferSpec({to_ts(o.image)}, {to_ts(o.uncached)}, {to_ts(o.cpu_access)}, {to_ts(o.host)}, {to_ts(o.nolru)}, {to_ts(o.external_ptr)})"
     if isinstance(o, Buffer):
-        return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, {to_ts(o.in_opaque)}, {to_ts(o.options)}, {to_ts(o.in_initial_value)}, {to_ts(o.in_lb_refcount)}, {to_ts(o.in_base)}, {to_ts(o.offset)}, {to_ts(o.in_preallocate)})"
+        return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, {to_ts(o.in_opaque)}, {to_ts(o.options)}, {to_ts(o.in_initial_value)}, {to_ts(getattr(o, '_lb_refcount', None))}, {to_ts(o._base)}, {to_ts(o.offset)}, {to_ts(o.in_preallocate)})"
     if isinstance(o, Allocator):
         return f"new Allocator()"
     if isinstance(o, LRUAllocator):
@@ -96,7 +96,7 @@ def to_ts(o):
 
     # ************ ENGINE ************
     if isinstance(o, LazyBuffer):
-        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.in_dtype)}, {to_ts(o.in_op)}, {to_ts(o.in_arg)}, {to_ts(o.in_srcs)}, {to_ts(o.in_base)}, {to_ts(o.metadata)})"
+        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(getattr(o,"op",None))}, {to_ts(getattr(o,"arg",None))}, {to_ts(getattr(o,"srcs",None))}, {to_ts(o._base)}, {to_ts(o.metadata)})"
 
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner()"
@@ -114,7 +114,7 @@ def to_ts(o):
 
     if isinstance(o, Metadata):
         return f"new Metadata({to_ts(o.name)}, {to_ts(o.caller)}, {to_ts(o.backward)})"
-    
+
     # if hasattr(o, "__dataclass_fields__"):
     #     fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
     #     return f"{{ {', '.join(f'{k}:{to_ts(v)}' for k,v in fields.items())} }}"
@@ -123,6 +123,8 @@ def to_ts(o):
     if callable(o):
         return "undefined"
     if isinstance(o, set):
+        return f"new Set([{', '.join(map(to_ts, o))}])"
+    if isinstance(o, frozenset):
         return f"new Set([{', '.join(map(to_ts, o))}])"
     if isinstance(o, (list, tuple)):
         return f"[{', '.join(map(to_ts, o))}]"

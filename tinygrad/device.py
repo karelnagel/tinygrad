@@ -56,7 +56,7 @@ class BufferSpec:
 class Buffer:
   def __init__(self, device:str, size:int, dtype:DType, opaque:Any=None, options:Optional[BufferSpec]=None,
                initial_value:Optional[bytes]=None, lb_refcount=0, base:Optional[Buffer]=None, offset:int=0, preallocate=False):
-    self.in_opaque, self.in_initial_value, self.in_lb_refcount, self.in_base,self.in_preallocate = opaque, initial_value, lb_refcount, base, preallocate
+    self.in_opaque, self.in_initial_value,self.in_preallocate = opaque, initial_value, preallocate
     if isinstance(dtype, ImageDType): options = BufferSpec(image=dtype) # TODO: image hack shouldn't be here. where should it be?
     else: assert isinstance(dtype, DType) and not isinstance(dtype, PtrDType)
     self.device, self.size, self.dtype, self.options, self.offset = device, size, dtype, options, offset

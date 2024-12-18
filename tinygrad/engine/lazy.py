@@ -26,7 +26,6 @@ class LazyBuffer(MathTrait):
   def __init__(self, device:str, st:ShapeTracker, dtype:DType,
                op:Optional[Ops]=None, arg:Any=None, srcs:Tuple[LazyBuffer, ...]=(),
                base:Optional[LazyBuffer]=None, metadata:Optional[Metadata]=None):
-    self.in_dtype, self.in_op, self.in_arg, self.in_srcs, self.in_base = dtype, op, arg, srcs, base
     self.device, self.st, self.dtype, self.shape, self.size, self.metadata = device, st, to_dtype(dtype), st.shape, st.size, metadata
     self._base: Optional[LazyBuffer] = None
     if base is None:
