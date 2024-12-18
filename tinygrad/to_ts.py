@@ -62,9 +62,9 @@ def to_ts(o):
     if isinstance(o, ClangRenderer):
         return f"new ClangRenderer()"
     if isinstance(o, TensorCore):
-        return f"new TensorCore({{ dims:{to_ts(o.dims)}, threads:{to_ts(o.threads)}, reduce_axes:{to_ts(o.reduce_axes)}, upcast_axes:{to_ts(o.upcast_axes)}, dtype_in:{to_ts(o.dtype_in)}, dtype_out:{to_ts(o.dtype_out)} }})"
+        return f"new TensorCore({to_ts(o.dims)}, {to_ts(o.dtype_in)}, {to_ts(o.dtype_out)}, {to_ts(o.threads)}, {to_ts(o.reduce_axes)}, {to_ts(o.upcast_axes)})"
     if isinstance(o, ProgramSpec):
-        return f"new ProgramSpec({{ name:{to_ts(o.name)}, src:{to_ts(o.src)}, device:{to_ts(o.device)}, uops:{to_ts(o.uops)}, mem_estimate:{to_ts(o.mem_estimate)}, global_size:{to_ts(o.global_size)}, local_size:{to_ts(o.local_size)}, vars:{to_ts(o.vars)}, globals:{to_ts(o.globals)}, outs:{to_ts(o.outs)} }})"
+        return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)})"
 
     # ************ CODEGEN ************
     if isinstance(o, IndexContext):
