@@ -54,7 +54,7 @@ def to_ts(o):
 
     # ************ VIEW ************
     if isinstance(o, View):
-        return f"new View({{ shape:{to_ts(o.shape)}, strides:{to_ts(o.strides)}, offset:{to_ts(o.offset)}, mask:{to_ts(o.mask)}, contiguous:{to_ts(o.contiguous)} }})"
+        return f"new View({to_ts(o.shape)}, {to_ts(o.strides)}, {to_ts(o.offset)}, {to_ts(o.mask)}, {to_ts(o.contiguous)})"
     if isinstance(o, ShapeTracker):
         return f"new ShapeTracker({to_ts(o.views)})"
 
@@ -123,7 +123,7 @@ def to_ts(o):
     if callable(o):
         return "undefined"
     if isinstance(o, set):
-        return f"[{', '.join(map(to_ts, o))}]"
+        return f"new Set([{', '.join(map(to_ts, o))}])"
     if isinstance(o, (list, tuple)):
         return f"[{', '.join(map(to_ts, o))}]"
     if o == float("inf"):
