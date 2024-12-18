@@ -48,7 +48,7 @@ def to_ts(o):
     if isinstance(o, ImageDType):
         return f"new ImageDType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)}, _base:{to_ts(o.base)}, local:{to_ts(o.local)}, v:{to_ts(o.v)}, shape:{to_ts(o.shape)} }})"
     if isinstance(o, PtrDType):
-        return f"new PtrDType({{ priority:{to_ts(o.priority)}, itemsize:{o.itemsize}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)}, _base:{to_ts(o.base)}, local:{to_ts(o.local)}, v:{to_ts(o.v)} }})"
+        return f"new PtrDType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)}, _base:{to_ts(o.base)}, local:{to_ts(o.local)}, v:{to_ts(o.v)} }})"
     if isinstance(o, DType):
         return f"new DType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)} }})"
 
@@ -84,7 +84,7 @@ def to_ts(o):
     if isinstance(o, BufferSpec):
         return f"new BufferSpec({to_ts(o.image)}, {to_ts(o.uncached)}, {to_ts(o.cpu_access)}, {to_ts(o.host)}, {to_ts(o.nolru)}, {to_ts(o.external_ptr)})"
     if isinstance(o, Buffer):
-        return f"new Buffer({{ device:{to_ts(o.device)}, size:{to_ts(o.size)}, dtype:{to_ts(o.dtype)}, opaque:undefined, options:{to_ts(o.options)}, initial_value:undefined, lb_refcount:{to_ts(o._lb_refcount)}, base:{to_ts(o._base)}, offset:undefined, preallocate:undefined }})"
+        return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, {to_ts(o.in_opaque)}, {to_ts(o.options)}, {to_ts(o.in_initial_value)}, {to_ts(o.in_lb_refcount)}, {to_ts(o.in_base)}, {to_ts(o.offset)}, {to_ts(o.in_preallocate)})"
     if isinstance(o, Allocator):
         return f"new Allocator()"
     if isinstance(o, LRUAllocator):
@@ -96,7 +96,7 @@ def to_ts(o):
 
     # ************ ENGINE ************
     if isinstance(o, LazyBuffer):
-        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(o.op if hasattr(o, 'op') else None)}, {to_ts(o.arg if hasattr(o, 'arg') else None)}, {to_ts(o.srcs) if hasattr(o, 'srcs') else '[]'}, {to_ts(o._base)}, {to_ts(o.metadata)})"
+        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.in_dtype)}, {to_ts(o.in_op)}, {to_ts(o.in_arg)}, {to_ts(o.in_srcs)}, {to_ts(o.in_base)}, {to_ts(o.metadata)})"
 
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner()"
