@@ -38,19 +38,19 @@ def to_ts(o):
         src = (
             f"[{to_ts(o._in_src)}]" if isinstance(o._in_src, list) else to_ts(o._in_src)
         )
-        return f"new UPat({{ op:{to_ts(o.op)}, dtype:{to_ts(o.dtype)}, src:{src}, arg:{to_ts(o.arg)}, name:{to_ts(o.name)}, allow_any_len:{to_ts(o.allowed_len == -1)}, location:{to_ts(o.location)}, custom_early_reject:{to_ts(o.custom_early_reject)} }})"
+        return f"new UPat({to_ts(o.op)}, {to_ts(o.dtype)}, {src}, {to_ts(o.arg)}, {to_ts(o.name)}, {to_ts(o.allowed_len == -1)}, {to_ts(o.location)}, {to_ts(o.custom_early_reject)})"
     if isinstance(o, UOp):
-        return f"new UOp({{ op:{to_ts(o.op)}, dtype:{to_ts(o.dtype)}, src:{to_ts(o.src)}, arg:{to_ts(o.arg)} }})"
+        return f"new UOp({to_ts(o.op)}, {to_ts(o.dtype)}, {to_ts(o.src)}, {to_ts(o.arg)})"
     if isinstance(o, KernelInfo):
         return f"new KernelInfo({to_ts(o.local_dims)}, {to_ts(o.upcasted)}, {to_ts(o.dont_use_locals)})"
 
     # ************ DTYPE ************
     if isinstance(o, ImageDType):
-        return f"new ImageDType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)}, _base:{to_ts(o.base)}, local:{to_ts(o.local)}, v:{to_ts(o.v)}, shape:{to_ts(o.shape)} }})"
+        return f"new ImageDType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)}, {to_ts(o.base)}, {to_ts(o.local)}, {to_ts(o.v)}, {to_ts(o.shape)})"
     if isinstance(o, PtrDType):
-        return f"new PtrDType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)}, _base:{to_ts(o.base)}, local:{to_ts(o.local)}, v:{to_ts(o.v)} }})"
+        return f"new PtrDType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)}, {to_ts(o.base)}, {to_ts(o.local)}, {to_ts(o.v)})"
     if isinstance(o, DType):
-        return f"new DType({{ priority:{to_ts(o.priority)}, itemsize:{to_ts(o.itemsize)}, name:{to_ts(o.name)}, fmt:{to_ts(o.fmt)}, count:{to_ts(o.count)}, _scalar:{to_ts(o._scalar)} }})"
+        return f"new DType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)})"
 
     # ************ VIEW ************
     if isinstance(o, View):
