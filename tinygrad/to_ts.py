@@ -64,7 +64,7 @@ def to_ts(o):
     if isinstance(o, TensorCore):
         return f"new TensorCore({to_ts(o.dims)}, {to_ts(o.dtype_in)}, {to_ts(o.dtype_out)}, {to_ts(o.threads)}, {to_ts(o.reduce_axes)}, {to_ts(o.upcast_axes)})"
     if isinstance(o, ProgramSpec):
-        return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)})"
+        return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)}, {to_ts(o._ran_post_init)})"
 
     # ************ CODEGEN ************
     if isinstance(o, IndexContext):
@@ -99,7 +99,7 @@ def to_ts(o):
         return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(getattr(o,"op",None))}, {to_ts(getattr(o,"arg",None))}, {to_ts(getattr(o,"srcs",None))}, {to_ts(o._base)}, {to_ts(o.metadata)})"
 
     if isinstance(o, CompiledRunner):
-        return f"new CompiledRunner()"
+        return f"new CompiledRunner({to_ts(o.p)}, {to_ts(o.lib)})"
     if isinstance(o, Runner):
         return f"new Runner({to_ts(o.display_name)}, {to_ts(o.device)}, {to_ts(o.op_estimate)}, {to_ts(o.mem_estimate)}, {to_ts(o.lds_estimate)})"
     if isinstance(o, ExecItem):
@@ -118,6 +118,8 @@ def to_ts(o):
     # if hasattr(o, "__dataclass_fields__"):
     #     fields = {k: getattr(o, k) for k in o.__dataclass_fields__}
     #     return f"{{ {', '.join(f'{k}:{to_ts(v)}' for k,v in fields.items())} }}"
+    if isinstance(o, bytes):
+        return f"new Uint8Array([{','.join(str(x) for x in o)}])"
     if isinstance(o, itertools.repeat):
         return to_ts(next(o))
     if callable(o):
@@ -139,7 +141,7 @@ def to_ts(o):
     if o is None:
         return "undefined"
     if isinstance(o, str):
-        return f"`{o}`"
+        return f"`{o.replace('\n', '\\n')}`"
     if isinstance(o, dict):
         return (
             f"new Map([{', '.join(f'[{to_ts(k)}, {to_ts(v)}]' for k,v in o.items())}])"
