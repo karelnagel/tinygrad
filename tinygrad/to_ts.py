@@ -15,12 +15,12 @@ def to_ts(o):
     from tinygrad.helpers import Metadata
     from tinygrad.device import (
         _Device,
-        _MallocAllocator,
+        # _MallocAllocator,
         Allocator,
         Buffer,
         BufferSpec,
         Compiler,
-        LRUAllocator,
+        # LRUAllocator,
     )
     from tinygrad.engine.lazy import LazyBuffer
     from tinygrad.engine.realize import CompiledRunner, ExecItem, Runner
@@ -87,10 +87,10 @@ def to_ts(o):
         return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, {to_ts(o.in_opaque)}, {to_ts(o.options)}, {to_ts(o.in_initial_value)}, {to_ts(getattr(o, '_lb_refcount', None))}, {to_ts(o._base)}, {to_ts(o.offset)}, {to_ts(o.in_preallocate)})"
     if isinstance(o, Allocator):
         return f"new Allocator()"
-    if isinstance(o, LRUAllocator):
-        return f"new LRUAllocator()"
-    if isinstance(o, _MallocAllocator):
-        return f"new _MallocAllocator()"
+    # if isinstance(o, LRUAllocator):
+    #     return f"new LRUAllocator()"
+    # if isinstance(o, _MallocAllocator):
+    #     return f"new _MallocAllocator()"
     if isinstance(o, Compiler):
         return f"new Compiler({to_ts(o.cachekey)})"
 
