@@ -29,6 +29,7 @@ def to_ts(o):
         ScheduleItem,
         ScheduleItemContext,
     )
+    from tinygrad.runtime.ops_python import PythonRenderer
 
     if isinstance(o, Enum):
         return f"{o.__class__.__name__ }.{o.name}"
@@ -40,7 +41,9 @@ def to_ts(o):
         )
         return f"new UPat({to_ts(o.op)}, {to_ts(o.dtype)}, {src}, {to_ts(o.arg)}, {to_ts(o.name)}, {to_ts(o.allowed_len == -1)}, {to_ts(o.location)}, {to_ts(o.custom_early_reject)})"
     if isinstance(o, UOp):
-        return f"new UOp({to_ts(o.op)}, {to_ts(o.dtype)}, {to_ts(o.src)}, {to_ts(o.arg)})"
+        return (
+            f"new UOp({to_ts(o.op)}, {to_ts(o.dtype)}, {to_ts(o.src)}, {to_ts(o.arg)})"
+        )
     if isinstance(o, KernelInfo):
         return f"new KernelInfo({to_ts(o.local_dims)}, {to_ts(o.upcasted)}, {to_ts(o.dont_use_locals)})"
 
@@ -61,6 +64,8 @@ def to_ts(o):
     # ************ RENDERER ************
     if isinstance(o, ClangRenderer):
         return f"new ClangRenderer()"
+    if isinstance(o, PythonRenderer):
+        return f"new PythonRenderer()"
     if isinstance(o, TensorCore):
         return f"new TensorCore({to_ts(o.dims)}, {to_ts(o.dtype_in)}, {to_ts(o.dtype_out)}, {to_ts(o.threads)}, {to_ts(o.reduce_axes)}, {to_ts(o.upcast_axes)})"
     if isinstance(o, ProgramSpec):
