@@ -125,6 +125,8 @@ def to_ts(o):
     #     return f"{{ {', '.join(f'{k}:{to_ts(v)}' for k,v in fields.items())} }}"
     if isinstance(o, bytes):
         return f"new Uint8Array([{','.join(str(x) for x in o)}])"
+    if isinstance(o, memoryview):
+        return f"new DataView(new Uint8Array([{','.join(str(x) for x in o)}]).buffer)"
     if isinstance(o, itertools.repeat):
         return to_ts(next(o))
     if callable(o):
