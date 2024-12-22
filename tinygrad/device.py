@@ -152,35 +152,35 @@ class Allocator:
   # def _offset(self, buf, size:int, offset:int):
   # def _transfer(self, dest, src, sz:int, src_dev, dest_dev):
 
-# class LRUAllocator(Allocator):
-#   """
-#   The LRU Allocator is responsible for caching buffers.
-#   It ensures that buffers are not freed until it is absolutely necessary, optimizing performance.
-#   """
-#   def __init__(self): self.cache: Dict[Tuple[int, Optional[BufferSpec]], Any] = defaultdict(list)
-#   def alloc(self, size:int, options:Optional[BufferSpec]=None):
-#     if len(c := self.cache[(size, options)]): return c.pop()
-#     try: return super().alloc(size, options)
-#     except (RuntimeError, MemoryError):
-#       self.free_cache()
-#       return super().alloc(size, options)
-#   def free_cache(self):
-#     for (sz,options),opaques in self.cache.items():
-#       for opaque in opaques: super().free(opaque, sz, options)
-#       opaques.clear()
-#   def free(self, opaque:Any, size:int, options:Optional[BufferSpec]=None):
-#     if getenv("LRU", 1) and (options is None or not options.nolru): self.cache[(size, options)].append(opaque)
-#     else: super().free(opaque, size, options)
+class LRUAllocator(Allocator):
+  """
+  The LRU Allocator is responsible for caching buffers.
+  It ensures that buffers are not freed until it is absolutely necessary, optimizing performance.
+  """
+  def __init__(self): self.cache: Dict[Tuple[int, Optional[BufferSpec]], Any] = defaultdict(list)
+  def alloc(self, size:int, options:Optional[BufferSpec]=None):
+    if len(c := self.cache[(size, options)]): return c.pop()
+    try: return super().alloc(size, options)
+    except (RuntimeError, MemoryError):
+      self.free_cache()
+      return super().alloc(size, options)
+  def free_cache(self):
+    for (sz,options),opaques in self.cache.items():
+      for opaque in opaques: super().free(opaque, sz, options)
+      opaques.clear()
+  def free(self, opaque:Any, size:int, options:Optional[BufferSpec]=None):
+    if getenv("LRU", 1) and (options is None or not options.nolru): self.cache[(size, options)].append(opaque)
+    else: super().free(opaque, size, options)
 
-# class _MallocAllocator(LRUAllocator):
-#   def _alloc(self, size:int, options:BufferSpec):
-#     return (ctypes.c_uint8 * size).from_address(options.external_ptr) if options.external_ptr else (ctypes.c_uint8 * size)()
-#   def _as_buffer(self, src) -> memoryview: return flat_mv(memoryview(src))
-#   def _copyin(self, dest, src:memoryview): ctypes.memmove(dest, from_mv(src), len(src))
-#   def _copyout(self, dest:memoryview, src): ctypes.memmove(from_mv(dest), src, len(dest))
-#   def _offset(self, buf, size:int, offset:int): return from_mv(self._as_buffer(buf)[offset:offset+size])
+class _MallocAllocator(LRUAllocator):
+  def _alloc(self, size:int, options:BufferSpec):
+    return (ctypes.c_uint8 * size).from_address(options.external_ptr) if options.external_ptr else (ctypes.c_uint8 * size)()
+  def _as_buffer(self, src) -> memoryview: return flat_mv(memoryview(src))
+  def _copyin(self, dest, src:memoryview): ctypes.memmove(dest, from_mv(src), len(src))
+  def _copyout(self, dest:memoryview, src): ctypes.memmove(from_mv(dest), src, len(dest))
+  def _offset(self, buf, size:int, offset:int): return from_mv(self._as_buffer(buf)[offset:offset+size])
 
-# MallocAllocator = _MallocAllocator()
+MallocAllocator = _MallocAllocator()
 
 # # **************** for Compiled Devices ****************
 
