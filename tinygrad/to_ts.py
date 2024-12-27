@@ -29,6 +29,7 @@ def to_ts(o):
         ScheduleItem,
         ScheduleItemContext,
     )
+    from tinygrad.tensor import Tensor
     from tinygrad.runtime.ops_python import PythonRenderer
 
     if isinstance(o, Enum):
@@ -117,6 +118,10 @@ def to_ts(o):
     if isinstance(o, ScheduleItemContext):
         return f"new ScheduleItemContext({to_ts(o.lazybufs)}, {to_ts(o.ops_metadata)}, {to_ts(o.assigns)}, {to_ts(o.var_vals)}, {to_ts(o.sinked)}, {to_ts(o.sts)}, {to_ts(o.bufs)}, {to_ts(o.metadata)}, {to_ts(o.assign_adj)})"
 
+    # ************ TENSOR ************
+    if isinstance(o, Tensor):
+        return f"new Tensor({to_ts(o.lazydata)}, {{ requires_grad:{to_ts(o.requires_grad)} }})"
+
     if isinstance(o, Metadata):
         return f"new Metadata({to_ts(o.name)}, {to_ts(o.caller)}, {to_ts(o.backward)})"
 
@@ -126,7 +131,7 @@ def to_ts(o):
     if isinstance(o, bytes):
         return f"new Uint8Array([{','.join(str(x) for x in o)}])"
     if isinstance(o, memoryview):
-        return f"new MemoryView(new Uint8Array([{','.join(str(x) for x in o)}]))" # not sure
+        return f"new MemoryView(new Uint8Array([{','.join(str(x) for x in o)}]))"  # not sure
     if isinstance(o, itertools.repeat):
         return to_ts(next(o))
     if callable(o):
