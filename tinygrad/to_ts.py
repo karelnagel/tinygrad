@@ -131,7 +131,7 @@ def to_ts(o):
     if isinstance(o, bytes):
         return f"new Uint8Array([{','.join(str(x) for x in o)}])"
     if isinstance(o, memoryview):
-        return f"new MemoryView(new Uint8Array([{','.join(str(x) for x in o)}]))"  # not sure
+        return f"new MemoryView(new Uint8Array([{','.join( str(x) for x in o.tobytes())}])).cast('{o.format}', [{",".join(str(x) for x in o.shape)}] )"
     if isinstance(o, itertools.repeat):
         return to_ts(next(o))
     if callable(o):
