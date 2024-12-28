@@ -7,6 +7,7 @@ def to_ts(o):
     from tinygrad.codegen.lowerer import IndexContext
     from tinygrad.dtype import DType, ImageDType, PtrDType
     from tinygrad.shape.shapetracker import ShapeTracker
+    from tinygrad.dtype import INVERSE_DTYPES_DICT
     from tinygrad.shape.view import View
     from tinygrad.renderer.cstyle import ClangRenderer
     from tinygrad.codegen.kernel import Kernel, Opt
@@ -50,11 +51,17 @@ def to_ts(o):
 
     # ************ DTYPE ************
     if isinstance(o, ImageDType):
-        return f"new ImageDType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)}, {to_ts(o.base)}, {to_ts(o.local)}, {to_ts(o.v)}, {to_ts(o.shape)})"
+        return f"dtypes.{o.name}({",".join(to_ts(x) for x in o.shape)})" + (
+            f".vec({o.v})" if o.v != 1 else ""
+        )
     if isinstance(o, PtrDType):
-        return f"new PtrDType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)}, {to_ts(o.base)}, {to_ts(o.local)}, {to_ts(o.v)})"
+        return f"{to_ts(o.base)}.ptr({'true' if o.local else ''})" + (
+            f".vec({o.v})" if o.v != 1 else ""
+        )
     if isinstance(o, DType):
-        return f"new DType({to_ts(o.priority)}, {to_ts(o.itemsize)}, {to_ts(o.name)}, {to_ts(o.fmt)}, {to_ts(o.count)}, {to_ts(o._scalar)})"
+        return f"dtypes.{INVERSE_DTYPES_DICT[o.scalar().name]}" + (
+            f".vec({o.count})" if o.count > 1 else ""
+        )
 
     # ************ VIEW ************
     if isinstance(o, View):
