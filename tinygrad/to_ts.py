@@ -171,11 +171,11 @@ def to_ts(o):
 global_inputs = {}
 
 
-def save_input(fn_name, input, max=6):
+def save_input(fn_name, input, max_len=6):
     ts = to_ts(input)
     fn_inputs: set = global_inputs.setdefault(fn_name, set())
     if ts not in fn_inputs:
-        if len(fn_inputs) >= max:
+        if len(fn_inputs) >= max_len:
             # Remove longest string if new one is shorter
             longest = max(fn_inputs, key=len)
             if len(ts) < len(longest):
