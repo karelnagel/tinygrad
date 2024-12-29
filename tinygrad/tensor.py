@@ -2392,6 +2392,43 @@ class Tensor(SimpleMathTrait):
     assert dtypes.is_unsigned(self.dtype) and isinstance(x, int) and x >= 0, f"not supported {self.dtype=} {x=}"
     return self.idiv(2 ** x)
 
+  def pow(self, x:Union[Tensor, ConstType], reverse=False) -> Tensor:
+    """
+    Computes power of `self` with `x`.
+    Equivalent to `self ** x`.
+
+    ```python exec="true" source="above" session="tensor" result="python"
+    print(Tensor([-1, 2, 3]).pow(2).numpy())
+    ```
+    ```python exec="true" source="above" session="tensor" result="python"
+    print(Tensor([-1, 2, 3]).pow(Tensor([-1.5, 0.5, 1.5])).numpy())
+    ```
+    ```python exec="true" source="above" session="tensor" result="python"
+    print((2 ** Tensor([-1, 2, 3])).numpy())
+    ```
+    """
+    x = self._to_const_val(x)
+    if not isinstance(x, Tensor) and not reverse:
+      # simple pow identities
+      if x < 0: return self.reciprocal().pow(-x)
+      if x == 0: return 1 + self * 0
+      if int(x - 0.5) + 0.5 == x: return self.pow(int(x - 0.5)) * self.sqrt()
+      if int(x) == x: return self.pow(x // 2).square() * (1 if x % 2 == 0 else self)
+
+    # positive const ** self
+    if not isinstance(x, Tensor) and reverse and x > 0: return self.mul(math.log(x)).exp()
+
+    base, exponent = self._broadcasted(x, reverse=reverse)
+    # start with b ** e = exp(e * log(b))
+    ret = base.abs().log().mul(exponent).exp()
+    # correct sign of negative base with odd exponent (cos has a period of 2pi so we use it here to get the oddness of the exponent)
+    negative_base = (base < 0).detach().where(1, 0)
+    # 1 for non-negative base or negative even exponent, -1 for negative odd exponent, don't care about non-integer exponent
+    correct_sign = 1 + negative_base * ((exponent * math.pi).cos() - 1)
+    # inject nan for negative base and non-integer exponent
+    inject_nan = (negative_base * (exponent != exponent.trunc())).detach().where(math.nan, 1)
+    # apply correct_sign inject_nan, and fix 0 ** 0 = 1
+    return ((base == 0) * (exponent == 0)).detach().where(1, ret * correct_sign * inject_nan)
 
   def maximum(self, x:Union[Tensor, ConstType]) -> Tensor:
     """
