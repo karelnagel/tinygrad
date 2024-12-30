@@ -176,6 +176,10 @@ class Tensor(SimpleMathTrait):
     schedule, var_vals = create_schedule_with_vars(flatten([x.lazydata.lbs for x in (self,)+lst]))
     return memory_planner(schedule), var_vals
 
+  def _debug_ast(self):
+    schedule,vars = self.cast(self.dtype.base).contiguous().to('PYTHON').schedule_with_vars()
+    return [s.ast for s in schedule]
+  
   def schedule(self, *lst:Tensor) -> List[ScheduleItem]:
     """Creates the schedule needed to realize these Tensor(s)."""
     schedule, var_vals = self.schedule_with_vars(*lst)
