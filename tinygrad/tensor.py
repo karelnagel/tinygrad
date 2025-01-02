@@ -11,7 +11,7 @@ from tinygrad.device import Device, Buffer, BufferSpec
 from tinygrad.engine.lazy import LazyBuffer
 from tinygrad.engine.realize import run_schedule
 from tinygrad.engine.memory import memory_planner
-from tinygrad.engine.schedule import ScheduleItem, create_schedule_with_vars
+from tinygrad.engine.schedule import ScheduleContext, ScheduleItem, create_schedule_with_vars, to_uop
 
 # **** start with two base classes, Tensor and Function ****
 
@@ -179,7 +179,12 @@ class Tensor(SimpleMathTrait):
   def _debug_ast(self):
     schedule,vars = self.cast(self.dtype.base).contiguous().to('PYTHON').schedule_with_vars()
     return [s.ast for s in schedule]
-  
+  def _debug(self):
+    ctx = ScheduleContext()
+    cache: Dict[LazyBuffer, UOp] = {}
+    buffers: Dict[UOp, Buffer] = {}
+    uop = to_uop(self.lazydata,ctx,buffers,cache)
+    return uop
   def schedule(self, *lst:Tensor) -> List[ScheduleItem]:
     """Creates the schedule needed to realize these Tensor(s)."""
     schedule, var_vals = self.schedule_with_vars(*lst)
