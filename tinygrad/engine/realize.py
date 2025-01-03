@@ -17,7 +17,8 @@ def get_kernel(renderer:Renderer, ast:UOp) -> Kernel:
     print(ast)
   k = Kernel(ast, opts=renderer).required_optimizations()
   if not NOOPT:
-    if not (used_tensor_cores:=k.apply_tensor_cores(getenv("TC", 1))): k.hand_coded_optimizations()
+    # KAREL: TODO: Change back to hand_coded_optimizations()
+    if not (used_tensor_cores:=k.apply_tensor_cores(getenv("TC", 1))): k.required_optimizations()
   if logkerns is not None: logkerns.writelines([f"{(k.ast, k.applied_opts)}\n"])
   if DEBUG >= 5: print((k.ast, k.applied_opts)) # print here to show final applied_opts for all kernels instead of just in beam_search
   return k
