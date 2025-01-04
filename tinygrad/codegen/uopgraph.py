@@ -153,8 +153,12 @@ def threefry2x32(x: UOp, key: UOp):
   key0, key1 = (key & 0xffffffff).cast(dtypes.uint32), ((key // 2**32) & 0xffffffff).cast(dtypes.uint32)
   ks = [key1, key0 ^ key1 ^ 0x1BD11BDA, key0]
   xr = [x0 + ks[-1], x1 + ks[0]]
+  j=0
   for i in range(5):
-    for r in rotations[i % 2]: xr[0], xr[1] = (x0 := xr[0] + xr[1]), x0 ^ ((xr[1] * 2**r) + (xr[1] // 2**(32 - r)))
+    for r in rotations[i % 2]: 
+      xr[0], xr[1] = (x0 := xr[0] + xr[1]), x0 ^ ((xr[1] * 2**r) + (xr[1] // 2**(32 - r)))
+      print(j)
+      j+=1
     xr = [(xr[0] + ks[i % 3]), (xr[1] + ks[(i + 1) % 3] + i + 1)]
 
   return xr[1].cast(dtypes.uint64) * 2**32 | xr[0].cast(dtypes.uint64)
