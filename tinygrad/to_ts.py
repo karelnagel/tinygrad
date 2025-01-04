@@ -155,7 +155,12 @@ def to_ts(o):
         return "-Infinity"
     if isinstance(o, float) and str(o) == "nan":
         return "NaN"
-    if isinstance(o, (bool, int, float)):
+    if isinstance(o, (int)):
+        # Check if value needs bigint by seeing if it exceeds max safe integer
+        if abs(o) > 9007199254740991:  # Number.MAX_SAFE_INTEGER
+            return str(o) + "n"
+        return str(o).lower()
+    if isinstance(o, (bool, float)):
         return str(o).lower()
     if o is None:
         return "undefined"
