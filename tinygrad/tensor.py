@@ -209,7 +209,7 @@ class Tensor(SimpleMathTrait):
   def assign(self, x) -> Tensor:
     # TODO: this is a hack for writing to DISK. remove with working assign
     if isinstance(self.device, str) and self.device.startswith("DISK"):
-      if x.__class__ is not Tensor: x = Tensor(x, device="PYTHON", dtype=self.dtype) # KAREL: changed CLANG to PYTHON
+      if x.__class__ is not Tensor: x = Tensor(x, device="CLANG", dtype=self.dtype)
       self.contiguous().realize().lazydata.base.realized.copyin(x._data())
       return self
     if x.__class__ is not Tensor: x = Tensor(x, device=self.device, dtype=self.dtype)
@@ -234,10 +234,10 @@ class Tensor(SimpleMathTrait):
   def _data(self) -> memoryview:
     if 0 in self.shape: return memoryview(bytearray(0))
     # NOTE: this realizes on the object from as_buffer being a Python object
-    cpu = self.cast(self.dtype.base).contiguous().to("PYTHON").realize() # KAREL: changed CLANG to PYTHON
+    cpu = self.cast(self.dtype.base).contiguous().to("CLANG").realize()
     buf = cast(Buffer, cast(LazyBuffer, cpu.lazydata).base.realized)
-    if self.device != "PYTHON": buf.options = BufferSpec(nolru=True) # KAREL: changed CLANG to PYTHON
-    return buf.as_buffer(allow_zero_copy=True if self.device != "PYTHON" else False) # KAREL: changed CLANG to PYTHON
+    if self.device != "CLANG": buf.options = BufferSpec(nolru=True)
+    return buf.as_buffer(allow_zero_copy=True if self.device != "CLANG" else False)
 
   def data(self) -> memoryview:
     """
