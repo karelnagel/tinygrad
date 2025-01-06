@@ -177,7 +177,7 @@ class Tensor(SimpleMathTrait):
     return memory_planner(schedule), var_vals
 
   def _debug_ast(self):
-    schedule,vars = create_schedule_with_vars(self.cast(self.dtype.base).contiguous().to('PYTHON').lazydata.lbs)
+    schedule,vars = create_schedule_with_vars(self.cast(self.dtype.base).contiguous().to('CLANG').lazydata.lbs)
     return [s.ast for s in schedule]
   def _debug(self):
     ctx = ScheduleContext()
