@@ -182,7 +182,7 @@ class _MallocAllocator(LRUAllocator):
 
 MallocAllocator = _MallocAllocator()
 
-# # **************** for Compiled Devices ****************
+# **************** for Compiled Devices ****************
 
 class CompileError(Exception): pass
 
