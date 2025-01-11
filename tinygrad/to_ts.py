@@ -12,7 +12,7 @@ def to_ts(o):
     from tinygrad.renderer.cstyle import ClangRenderer
     from tinygrad.codegen.kernel import Kernel, Opt
     from tinygrad.codegen.linearize import BasicBlock
-    from tinygrad.renderer import ProgramSpec, TensorCore
+    from tinygrad.renderer import ProgramSpec
     from tinygrad.helpers import Metadata
     from tinygrad.device import (
         _Device,
@@ -74,8 +74,6 @@ def to_ts(o):
         return f"new ClangRenderer()"
     if isinstance(o, PythonRenderer):
         return f"new PythonRenderer()"
-    if isinstance(o, TensorCore):
-        return f"new TensorCore({to_ts(o.dims)}, {to_ts(o.dtype_in)}, {to_ts(o.dtype_out)}, {to_ts(o.threads)}, {to_ts(o.reduce_axes)}, {to_ts(o.upcast_axes)})"
     if isinstance(o, ProgramSpec):
         return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)}, {to_ts(o._ran_post_init)})"
 
