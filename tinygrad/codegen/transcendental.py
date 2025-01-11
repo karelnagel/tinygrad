@@ -62,6 +62,8 @@ def frexp(v:UOp) -> Tuple[UOp, UOp]:
   exp = exponent - exponent_bias(v.dtype) + 1
   return mantissa, exp
 
+
+# *** reduction algorithms for sine ***
 # *** reduction algorithms for sine ***
 def payne_hanek_reduction(d:UOp) -> Tuple[UOp, UOp]:
   """
@@ -111,6 +113,7 @@ def payne_hanek_reduction(d:UOp) -> Tuple[UOp, UOp]:
 
   # if fraction >= 0.5, r -= pi/2, q += 1
   return (f<0.5).where(r, r - math.pi/2), (f<0.5).where(q, q + 1)
+
 
 def cody_waite_reduction(d:UOp) -> Tuple[UOp, UOp]:
   """
