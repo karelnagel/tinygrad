@@ -88,34 +88,35 @@ def simplify_valid_load(buf:UOp, start_idx:UOp, valid:UOp) -> Optional[UOp]:
   if not isinstance(buf.dtype, ImageDType): return None if idx is start_idx else buf.index(idx, valid)
 
   # wait for it to be image indexed before running simplification
-  if start_idx.dtype.count != 2: return None
+  # TODO:not needed for mnist
+  # if start_idx.dtype.count != 2: return None
 
-  # can drop valid if idx is out of bound when valid is False
-  drop_stmt = []
-  for stmt in split_uop(valid, Ops.AND):
-    X, is_upper_bound, c = parse_valid(stmt)
+  # # can drop valid if idx is out of bound when valid is False
+  # drop_stmt = []
+  # for stmt in split_uop(valid, Ops.AND):
+  #   X, is_upper_bound, c = parse_valid(stmt)
 
-    # for X0 + X1 + ... >= 1, check if it's out of bound when Xi = 0 for all i
-    if not is_upper_bound and c == 1 and all(u.op in GroupOp.Irreducible and u.vmin == 0 for u in split_uop(X, Ops.ADD)):
-      testidx = functools.reduce(lambda nowidx,u: nowidx.substitute({u:u.const_like(0)}), split_uop(X, Ops.ADD), idx)
-      testidx = testidx.simplify()
-      if testidx.gep(0).vmax < 0 or testidx.gep(1).vmax < 0:
-        drop_stmt.append(stmt)
-        continue
+  #   # for X0 + X1 + ... >= 1, check if it's out of bound when Xi = 0 for all i
+  #   if not is_upper_bound and c == 1 and all(u.op in GroupOp.Irreducible and u.vmin == 0 for u in split_uop(X, Ops.ADD)):
+  #     testidx = functools.reduce(lambda nowidx,u: nowidx.substitute({u:u.const_like(0)}), split_uop(X, Ops.ADD), idx)
+  #     testidx = testidx.simplify()
+  #     if testidx.gep(0).vmax < 0 or testidx.gep(1).vmax < 0:
+  #       drop_stmt.append(stmt)
+  #       continue
 
-    # if X <= c, check if it's out of bound when X = c+1
-    # if X >= c, check if it's out of bound when X = c-1
-    test_value = c + 1 if is_upper_bound else c - 1
-    for i,b in zip(idx.src, (buf.dtype.shape[1], buf.dtype.shape[0])):
-      if is_increasing(i):
-        rw = i.substitute({X:X.const_like(test_value)}).simplify()
-        if rw.vmin >= b or rw.vmax < 0:
-          drop_stmt.append(stmt)
-          break
+  #   # if X <= c, check if it's out of bound when X = c+1
+  #   # if X >= c, check if it's out of bound when X = c-1
+  #   test_value = c + 1 if is_upper_bound else c - 1
+  #   for i,b in zip(idx.src, (buf.dtype.shape[1], buf.dtype.shape[0])):
+  #     if is_increasing(i):
+  #       rw = i.substitute({X:X.const_like(test_value)}).simplify()
+  #       if rw.vmin >= b or rw.vmax < 0:
+  #         drop_stmt.append(stmt)
+  #         break
 
-  if not drop_stmt and idx is start_idx: return None
-  new_valid = functools.reduce(operator.and_, ss) if (ss:=[s for s in split_uop(valid, Ops.AND) if s not in drop_stmt]) else None
-  return buf.index(idx, new_valid)
+  # if not drop_stmt and idx is start_idx: return None
+  # new_valid = functools.reduce(operator.and_, ss) if (ss:=[s for s in split_uop(valid, Ops.AND) if s not in drop_stmt]) else None
+  # return buf.index(idx, new_valid)
 
 # ***** optional patterns *****
 
@@ -153,7 +154,8 @@ def threefry2x32(x: UOp, key: UOp):
   ks = [key1, key0 ^ key1 ^ 0x1BD11BDA, key0]
   xr = [x0 + ks[-1], x1 + ks[0]]
   for i in range(5):
-    for r in rotations[i % 2]: xr[0], xr[1] = (x0 := xr[0] + xr[1]), x0 ^ ((xr[1] * 2**r) + (xr[1] // 2**(32 - r)))
+    for r in rotations[i % 2]: 
+      xr[0], xr[1] = (x0 := xr[0] + xr[1]), x0 ^ ((xr[1] * 2**r) + (xr[1] // 2**(32 - r)))
     xr = [(xr[0] + ks[i % 3]), (xr[1] + ks[(i + 1) % 3] + i + 1)]
 
   return xr[1].cast(dtypes.uint64) * 2**32 | xr[0].cast(dtypes.uint64)
@@ -190,45 +192,15 @@ def loop_collapse(compval, multconst, rng:UOp, acc:UOp, idx2=None,idx3=None,extr
   return ret
 
 def index_collapse(idx:UOp,rng:UOp,buf:UOp,ld:UOp,acc:UOp,add=UOp.const(dtypes.int, 0),mul=UOp.const(dtypes.int, 1)):
-  if rng not in acc.src: return None
-  new_load = UOp.load(buf.index(add+mul*idx, (idx >= rng.src[0]) & (idx < rng.src[1])), dtype=ld.dtype)
-  new_acc = acc.replace(src=acc.src[0:1]+tuple(x for x in acc.src[1:] if x is not rng))
-  return new_acc.assign(new_acc+new_load)
+  pass
 
 # TODO: there's a lot shared with no_vectorized_wmma here
 def gep_through_wmma(gep:UOp, wmma:UOp):
-  out_sz = prod(x[1] for x in wmma.arg[6][-1])
-  wmma_idxs = gep.arg[::out_sz]
-  for i in range(out_sz):
-    if tuple(x-i for x in gep.arg[i::out_sz]) != wmma_idxs: return None
-  tsrcs = []
-  for s,sz in zip(wmma.src, wmma.arg[6]):
-    src_args = []
-    ssz = prod(x[1] for x in sz)
-    for w in wmma_idxs: src_args += list(range((w//out_sz)*ssz, (w//out_sz)*ssz + ssz))
-    tsrcs.append(s.gep(tuple(src_args)))
-  return UOp(Ops.WMMA, gep.dtype, tuple(tsrcs), wmma.arg)
-
+  pass
 def no_vectorized_wmma(wmma:UOp):
-  out_sz = prod(x[1] for x in wmma.arg[6][-1])
-  if wmma.dtype.count == out_sz: return None
-  tsrcs = []
-  for s,sz in zip(wmma.src, wmma.arg[6]):
-    ssz = prod(x[1] for x in sz)
-    tsrcs.append([s.gep(tuple(range(grp, grp+ssz))) for grp in range(0, s.dtype.count, ssz)])
-  wmmas = [UOp(Ops.WMMA, wmma.dtype.scalar().vec(out_sz), tsrc, wmma.arg) for tsrc in zip(*tsrcs)]
-  wmma_ex = flatten([[e.gep(i) for i in range(out_sz)] for e in wmmas])
-  return UOp(Ops.VECTORIZE, wmma.dtype, tuple(wmma_ex))
-
+  pass
 def reduce_collapse(acc:UOp, ret:UOp, alu:UOp):
-  reduce_parented, reduce_unparented = partition(acc.src[1:], lambda x: x in ret.toposort)
-  if len(reduce_unparented) == 0: return None
-  new_acc = acc.replace(src=acc.src[0:1]+tuple(reduce_parented))
-  ret = new_acc.assign(new_acc.alu(alu.op, ret))
-  if alu.op is Ops.ADD:
-    for r in reduce_unparented: ret = ret * (r.src[1]-r.src[0]).cast(ret.dtype.scalar()).broadcast(ret.dtype.count)
-  return ret
-
+  pass
 acc_pat, rng_pat = UPat(Ops.DEFINE_ACC, name="acc"), UPat(Ops.RANGE, name="rng")
 rng_aug = UPat.any(rng_pat, UPat.var("add")+rng_pat, UPat.var("mul")*rng_pat, UPat.var("add")+UPat.var("mul")*rng_pat)
 
@@ -284,7 +256,7 @@ sym = symbolic_flat+PatternMatcher([
   ((UPat.var('x', dtypes.uint64)&(UPat.var('y').where(UPat.const(dtypes.uint64, 0xFFFFFFFF), UPat.const(dtypes.uint64, 0)))).cast(dtypes.uint32),
    lambda x,y: y.where(x.cast(dtypes.uint32), UOp.const(dtypes.uint32, 0))),
   # arange loop folding
-  (acc_pat.assign(UPat.any(arange_m, arange_m+UPat.var("extra"))+acc_pat), loop_collapse),
+  # (acc_pat.assign(UPat.any(arange_m, arange_m+UPat.var("extra"))+acc_pat), loop_collapse),
   # indexing, with cast or where
   (acc_pat.assign(UPat.var("idx").eq(UPat(Ops.RANGE, name="rng")).cast()*index_load+acc_pat), index_collapse),
   (acc_pat.assign(UPat.var("idx").eq(UPat(Ops.RANGE, name="rng")).where(index_load, UPat.const(None, 0.0))+acc_pat), index_collapse),

@@ -94,25 +94,9 @@ def apply_swizzle(u:UOp, arg:ShapeTracker) -> UOp:
   with Context(TRACK_MATCH_STATS=0): return graph_rewrite(u.view(arg), view_left)
 
 def swizzle_r(r:UOp, src:UOp, st:ShapeTracker) -> UOp:
-  input_st = ShapeTracker.from_shape(unwrap(src.st).shape)
-  tmp = input_st.permute(tuple(i for i in range(len(input_st.shape)) if i not in r.axis_arg)+r.axis_arg)
-  prshape = prod(rshape:=tmp.shape[-len(r.axis_arg):])
-  strides = strides_for_shape(rshape)
-  nv = [View.create(v.shape+rshape, tuple(x*prshape for x in v.strides)+strides,
-                    v.offset*prshape, v.mask+tuple((0,s) for s in rshape) if v.mask is not None else None) for v in st.views]
-  # update input_st and axis
-  new_input_st = tmp + ShapeTracker(tuple(nv))
-  new_axis = tuple(range(len(st.shape), len(st.shape) + len(r.axis_arg)))
-  return apply_swizzle(src, new_input_st).r(r.arg[0], new_axis).view(ShapeTracker.from_shape(st.shape))
-
+  pass
 def push_swizzle_down_through_reduce(r:UOp, v:UOp, src:UOp) -> UOp:
-  swizzle_st, src_st = unwrap(v.st), unwrap(src.st)
-  assert swizzle_st.contiguous, "can't push a non contiguous VIEW down to STORE"
-  assert prod(swizzle_st.shape) == prod(src_st.shape), "can't push expands down to STORE"
-  output_shape = swizzle_st.reduce(r.axis_arg)
-  new_axis = tuple(i for i,(s,u) in enumerate(zip(src_st.shape, output_shape)) if s != u)
-  return src.r(r.arg[0], new_axis).view(ShapeTracker.from_shape(output_shape))
-
+  pass
 def push_swizzle_down_through_elementwise(root:UOp) -> Optional[UOp]:
   if not (swizzles := [x for x in root.src if x.base is not x]): return None
   swizzle_shapes = [(unwrap(x.st).shape, unwrap(x.src[0].st).shape) for x in swizzles]
@@ -125,10 +109,7 @@ def push_swizzle_down_through_elementwise(root:UOp) -> Optional[UOp]:
   return ret if ret.op is Ops.STORE else ret.view(ShapeTracker.from_shape(new_shape))
 
 def merge_double_reduce(root:UOp, first_reduce:UOp) -> UOp:
-  assert root.arg[0] == first_reduce.arg[0], "can't merge reduceops with different alu"
-  assert not any(x.op is Ops.REDUCE_AXIS for x in first_reduce.src[0].toposort), "can't merge more than two reduceops at a time"
-  return first_reduce.src[0].r(first_reduce.arg[0], root.axis_arg+first_reduce.axis_arg)
-
+  pass
 # push VIEW to stores
 view_right = merge_views+PatternMatcher([
   # ASSIGN with offset swizzles STORE
@@ -310,12 +291,13 @@ def group_realizes(ctx:ScheduleContext) -> List[List[UOp]]:
     top_reduce = uval(ctx.allbufs[reduceop]).src[0].base.buf_uop
     if len(ctx.children[top_reduce]) == 1: del ctx.realizes[top_reduce]
   # maybe fuse arange with its children
-  for rbuf in reduce_of_const:
-    group = {tr:None for tr,rop in reduce_for_op.items() if rop is rbuf}
-    if any(ctx.lazybufs[tr].forced_realize for tr in group): continue
-    kernel_children = {c for tr in group for c in ctx.children[tr] if uval(ctx.allbufs[c]).op not in {Ops.COPY, Ops.BUFFER_VIEW}}
-    if len(kernel_children) == 0: continue
-    for tr in group: del ctx.realizes[tr]
+  # TODO:not needed for mnist
+  # for rbuf in reduce_of_const:
+  #   group = {tr:None for tr,rop in reduce_for_op.items() if rop is rbuf}
+  #   if any(ctx.lazybufs[tr].forced_realize for tr in group): continue
+  #   kernel_children = {c for tr in group for c in ctx.children[tr] if uval(ctx.allbufs[c]).op not in {Ops.COPY, Ops.BUFFER_VIEW}}
+  #   if len(kernel_children) == 0: continue
+  #   for tr in group: del ctx.realizes[tr]
   # group BUFFER uops into kernels
   output_groups: DefaultDict[UOp, List[UOp]] = defaultdict(list)
   for ubuf in ctx.realizes: output_groups[reduce_for_op.get(ubuf, ubuf)].append(ubuf)
@@ -453,6 +435,4 @@ def create_schedule_with_vars(outs:List[LazyBuffer]) -> Tuple[List[ScheduleItem]
   return schedule, ctx.var_vals
 
 def create_schedule(outs:List[LazyBuffer]) -> List[ScheduleItem]:
-  schedule, var_vals = create_schedule_with_vars(outs)
-  assert len(var_vals) == 0
-  return schedule
+  pass

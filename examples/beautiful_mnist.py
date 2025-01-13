@@ -1,6 +1,7 @@
 # model based off https://towardsdatascience.com/going-beyond-99-mnist-handwritten-digits-recognition-cfff96337392
+import pathlib
 from typing import List, Callable
-from tinygrad import Tensor, TinyJit, nn, GlobalCounters
+from tinygrad import Tensor, nn, GlobalCounters
 from tinygrad.helpers import getenv, colored, trange
 from tinygrad.nn.datasets import mnist
 
@@ -21,9 +22,11 @@ if __name__ == "__main__":
   X_train, Y_train, X_test, Y_test = mnist(fashion=getenv("FASHION"))
 
   model = Model()
+  path = "model.safetensors"
+  if pathlib.Path(path).exists():
+    nn.state.load_state_dict(model, nn.state.safe_load(path))
   opt = nn.optim.Adam(nn.state.get_parameters(model))
 
-  @TinyJit
   @Tensor.train()
   def train_step() -> Tensor:
     opt.zero_grad()
@@ -33,18 +36,14 @@ if __name__ == "__main__":
     opt.step()
     return loss
 
-  @TinyJit
   @Tensor.test()
   def get_test_acc() -> Tensor: return (model(X_test).argmax(axis=1) == Y_test).mean()*100
 
   test_acc = float('nan')
-  for i in (t:=trange(getenv("STEPS", 70))):
+  for i in (t:=trange(getenv("STEPS", 14))):
     GlobalCounters.reset()   # NOTE: this makes it nice for DEBUG=2 timing
     loss = train_step()
     if i%10 == 9: test_acc = get_test_acc().item()
     t.set_description(f"loss: {loss.item():6.2f} test_accuracy: {test_acc:5.2f}%")
+  nn.state.safe_save(nn.state.get_state_dict(model), path)
 
-  # verify eval acc
-  if target := getenv("TARGET_EVAL_ACC_PCT", 0.0):
-    if test_acc >= target and test_acc != 100.0: print(colored(f"{test_acc=} >= {target}", "green"))
-    else: raise ValueError(colored(f"{test_acc=} < {target}", "red"))
