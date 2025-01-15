@@ -22,7 +22,7 @@ if __name__ == "__main__":
   X_train, Y_train, X_test, Y_test = mnist(fashion=getenv("FASHION"))
 
   model = Model()
-  path = "model.safetensors"
+  path = "mnist.safetensors"
   if pathlib.Path(path).exists():
     nn.state.load_state_dict(model, nn.state.safe_load(path))
   opt = nn.optim.Adam(nn.state.get_parameters(model))
