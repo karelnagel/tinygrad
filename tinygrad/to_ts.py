@@ -23,7 +23,6 @@ def to_ts(o):
         Compiler,
         LRUAllocator,
     )
-    from tinygrad.engine.lazy import LazyBuffer
     from tinygrad.engine.realize import CompiledRunner, ExecItem, Runner
     from tinygrad.engine.schedule import (
         ScheduleContext,
@@ -108,9 +107,6 @@ def to_ts(o):
         return f"new Compiler({to_ts(o.cachekey)})"
 
     # ************ ENGINE ************
-    if isinstance(o, LazyBuffer):
-        return f"new LazyBuffer({to_ts(o.device)}, {to_ts(o.st)}, {to_ts(o.dtype)}, {to_ts(getattr(o,"op",None))}, {to_ts(getattr(o,"arg",None))}, {to_ts(getattr(o,"srcs",None))}, {to_ts(o._base)}, {to_ts(o.metadata)})"
-
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner({to_ts(o.p)}, {to_ts(o.lib)})"
     if isinstance(o, Runner):

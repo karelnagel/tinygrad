@@ -2,7 +2,7 @@ from __future__ import annotations
 import os, functools, platform, time, re, contextlib, operator, hashlib, pickle, sqlite3, tempfile, pathlib, string, ctypes, sys, gzip
 import urllib.request, subprocess, shutil, math, contextvars, types, copyreg, inspect, importlib
 from dataclasses import dataclass
-from typing import Dict, Tuple, Union, List, ClassVar, Optional, Iterable, Any, TypeVar, Callable, Sequence, TypeGuard
+from typing import Union, ClassVar, Optional, Iterable, Any, TypeVar, Callable, Sequence, TypeGuard, Iterator, Generic
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -23,14 +23,14 @@ def argfix(*x):
     return tuple(x[0])
   return x
 def argsort(x): return type(x)(sorted(range(len(x)), key=x.__getitem__)) # https://stackoverflow.com/questions/3382352/equivalent-of-numpy-argsort-in-basic-python
-def all_same(items:Union[Tuple[T, ...], List[T]]): return all(x == items[0] for x in items)
-def all_int(t: Sequence[Any]) -> TypeGuard[Tuple[int, ...]]: return all(isinstance(s, int) for s in t)
+def all_same(items:Union[tuple[T, ...], list[T]]): return all(x == items[0] for x in items)
+def all_int(t: Sequence[Any]) -> TypeGuard[tuple[int, ...]]: return all(isinstance(s, int) for s in t)
 def colored(st, color:Optional[str], background=False): return f"\u001b[{10*background+60*(color.upper() == color)+30+['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'].index(color.lower())}m{st}\u001b[0m" if color is not None else st  # replace the termcolor library with one line  # noqa: E501
 def colorize_float(x: float): return colored(f"{x:7.2f}x", 'green' if x < 0.75 else 'red' if x > 1.15 else 'yellow')
 def memsize_to_str(_bytes: int) -> str: return [f"{(_bytes / d):.2f} {pr}" for d,pr in [(1e9,"GB"),(1e6,"MB"),(1e3,"KB"),(1,"B")] if _bytes > d][0]
 def ansistrip(s:str): return re.sub('\x1b\\[(K|.*?m)', '', s)
 def ansilen(s:str): return len(ansistrip(s))
-def make_tuple(x:Union[int, Sequence[int]], cnt:int) -> Tuple[int, ...]: return (x,)*cnt if isinstance(x, int) else tuple(x)
+def make_tuple(x:Union[int, Sequence[int]], cnt:int) -> tuple[int, ...]: return (x,)*cnt if isinstance(x, int) else tuple(x)
 def flatten(l:Iterable[Iterable[T]]): return [item for sublist in l for item in sublist]
 def fully_flatten(l):
   if hasattr(l, "__len__") and hasattr(l, "__getitem__") and not isinstance(l, str):
@@ -43,19 +43,26 @@ def fromimport(mod, frm): return getattr(__import__(mod, fromlist=[frm]), frm)
 def strip_parens(fst:str): return fst[1:-1] if fst[0] == '(' and fst[-1] == ')' and fst[1:-1].find('(') <= fst[1:-1].find(')') else fst
 def ceildiv(num, amt): return int(ret) if isinstance((ret:=-(num//-amt)), float) else ret
 def round_up(num:int, amt:int) -> int: return (num+amt-1)//amt * amt
-def data64(data:Any) -> Tuple[Any, Any]: return (data >> 32, data & 0xFFFFFFFF) # Any is sint
-def data64_le(data:Any) -> Tuple[Any, Any]: return (data & 0xFFFFFFFF, data >> 32) # Any is sint
-def merge_dicts(ds:Iterable[Dict[T,U]]) -> Dict[T,U]:
+def lo32(x:Any) -> Any: return x & 0xFFFFFFFF # Any is sint
+def hi32(x:Any) -> Any: return x >> 32 # Any is sint
+def data64(data:Any) -> tuple[Any, Any]: return (data >> 32, data & 0xFFFFFFFF) # Any is sint
+def data64_le(data:Any) -> tuple[Any, Any]: return (data & 0xFFFFFFFF, data >> 32) # Any is sint
+def getbits(value: int, start: int, end: int): return (value >> start) & ((1 << end-start+1) - 1)
+def i2u(bits: int, value: int): return value if value >= 0 else (1<<bits)+value
+def merge_dicts(ds:Iterable[dict[T,U]]) -> dict[T,U]:
   kvs = set([(k,v) for d in ds for k,v in d.items()])
   assert len(kvs) == len(set(kv[0] for kv in kvs)), f"cannot merge, {kvs} contains different values for the same key"
   return {k:v for d in ds for k,v in d.items()}
-def partition(itr:Iterable[T], fxn:Callable[[T],bool]) -> Tuple[List[T], List[T]]:
-  ret:Tuple[List[T], List[T]] = ([], [])
+def partition(itr:Iterable[T], fxn:Callable[[T],bool]) -> tuple[list[T], list[T]]:
+  ret:tuple[list[T], list[T]] = ([], [])
   for s in itr: (ret[0] if fxn(s) else ret[1]).append(s)
   return ret
 def unwrap(x:Optional[T]) -> T:
   assert x is not None
   return x
+def get_single_element(x:list[T]) -> T:
+  assert len(x) == 1, f"list {x} must only have 1 element"
+  return x[0]
 def get_child(obj, key):
   for k in key.split('.'):
     if k.isnumeric(): obj = obj[int(k)]
@@ -65,7 +72,7 @@ def get_child(obj, key):
 def word_wrap(x, wrap=80): return x if len(x) <= wrap or '\n' in x[0:wrap] else (x[0:wrap] + "\n" + word_wrap(x[wrap:], wrap))
 
 # for length N coefficients `p`, returns p[0] * x**(N-1) + p[1] * x**(N-2) + ... + p[-2] * x + p[-1]
-def polyN(x:T, p:List[float]) -> T: return functools.reduce(lambda acc,c: acc*x+c, p, 0.0)  # type: ignore
+def polyN(x:T, p:list[float]) -> T: return functools.reduce(lambda acc,c: acc*x+c, p, 0.0)  # type: ignore
 
 @functools.lru_cache(maxsize=None)
 def to_function_name(s:str): return ''.join([c if c in (string.ascii_letters+string.digits+'_') else f'{ord(c):02X}' for c in ansistrip(s)])
@@ -74,21 +81,19 @@ def getenv(key:str, default=0): return type(default)(os.getenv(key, default))
 def temp(x:str) -> str: return (pathlib.Path(tempfile.gettempdir()) / x).as_posix()
 
 class Context(contextlib.ContextDecorator):
-  stack: ClassVar[List[dict[str, int]]] = [{}]
   def __init__(self, **kwargs): self.kwargs = kwargs
   def __enter__(self):
-    Context.stack[-1] = {k:o.value for k,o in ContextVar._cache.items()} # Store current state.
-    for k,v in self.kwargs.items(): ContextVar._cache[k].value = v # Update to new temporary state.
-    Context.stack.append(self.kwargs) # Store the temporary state so we know what to undo later.
+    self.old_context:dict[str, int] = {k:v.value for k,v in ContextVar._cache.items()}
+    for k,v in self.kwargs.items(): ContextVar._cache[k].value = v
   def __exit__(self, *args):
-    for k in Context.stack.pop(): ContextVar._cache[k].value = Context.stack[-1].get(k, ContextVar._cache[k].value)
+    for k,v in self.old_context.items(): ContextVar._cache[k].value = v
 
 class ContextVar:
-  _cache: ClassVar[Dict[str, ContextVar]] = {}
+  _cache: ClassVar[dict[str, ContextVar]] = {}
   value: int
   key: str
   def __init__(self, key, default_value):
-    assert key not in ContextVar._cache, f"attempt to recreate ContextVar {key}"
+    if key in ContextVar._cache: raise RuntimeError(f"attempt to recreate ContextVar {key}")
     ContextVar._cache[key] = self
     self.value, self.key = getenv(key, default_value), key
   def __bool__(self): return bool(self.value)
@@ -98,10 +103,10 @@ class ContextVar:
 
 DEBUG, IMAGE, BEAM, NOOPT, JIT = ContextVar("DEBUG", 0), ContextVar("IMAGE", 0), ContextVar("BEAM", 0), ContextVar("NOOPT", 0), ContextVar("JIT", 1)
 WINO, CAPTURING, TRACEMETA = ContextVar("WINO", 0), ContextVar("CAPTURING", 1), ContextVar("TRACEMETA", 1)
-PROFILE, PROFILEPATH = ContextVar("PROFILE", 0), ContextVar("PROFILEPATH", temp("tinygrad_profile.json"))
 USE_TC, TC_OPT, AMX, TRANSCENDENTAL = ContextVar("TC", 1), ContextVar("TC_OPT", 0), ContextVar("AMX", 0), ContextVar("TRANSCENDENTAL", 1)
-FUSE_ARANGE, FUSE_CONV_BW, LAZYCACHE = ContextVar("FUSE_ARANGE", 0), ContextVar("FUSE_CONV_BW", 0), ContextVar("LAZYCACHE", 1)
+FUSE_ARANGE, FUSE_CONV_BW = ContextVar("FUSE_ARANGE", 0), ContextVar("FUSE_CONV_BW", 0)
 SPLIT_REDUCEOP, NO_MEMORY_PLANNER, RING = ContextVar("SPLIT_REDUCEOP", 1), ContextVar("NO_MEMORY_PLANNER", 0), ContextVar("RING", 1)
+PICKLE_BUFFERS, PROFILE = ContextVar("PICKLE_BUFFERS", 1), ContextVar("PROFILE", getenv("VIZ"))
 
 @dataclass(frozen=True)
 class Metadata:
@@ -134,14 +139,33 @@ class Timing(contextlib.ContextDecorator):
     if self.enabled: print(f"{self.prefix}{self.et*1e-6:6.2f} ms"+(self.on_exit(self.et) if self.on_exit else ""))
 
 def _format_fcn(fcn): return f"{fcn[0]}:{fcn[1]}:{fcn[2]}"
+class Profiling(contextlib.ContextDecorator):
+  def __init__(self, enabled=True, sort='cumtime', frac=0.2, fn=None, ts=1):
+    self.enabled, self.sort, self.frac, self.fn, self.time_scale = enabled, sort, frac, fn, 1e3/ts
+  def __enter__(self):
+    import cProfile
+    self.pr = cProfile.Profile()
+    if self.enabled: self.pr.enable()
+  def __exit__(self, *exc):
+    if self.enabled:
+      self.pr.disable()
+      if self.fn: self.pr.dump_stats(self.fn)
+      import pstats
+      stats = pstats.Stats(self.pr).strip_dirs().sort_stats(self.sort)
+      for fcn in stats.fcn_list[0:int(len(stats.fcn_list)*self.frac)]:    # type: ignore[attr-defined]
+        (_primitive_calls, num_calls, tottime, cumtime, callers) = stats.stats[fcn]    # type: ignore[attr-defined]
+        scallers = sorted(callers.items(), key=lambda x: -x[1][2])
+        print(f"n:{num_calls:8d}  tm:{tottime*self.time_scale:7.2f}ms  tot:{cumtime*self.time_scale:7.2f}ms",
+              colored(_format_fcn(fcn).ljust(50), "yellow"),
+              colored(f"<- {(scallers[0][1][2]/tottime)*100:3.0f}% {_format_fcn(scallers[0][0])}", "BLACK") if scallers else '')
 
 # *** universal database cache ***
 
-_cache_dir: str = getenv("XDG_CACHE_HOME", os.path.expanduser("~/Library/Caches" if OSX else "~/.cache"))
-CACHEDB: str = getenv("CACHEDB", os.path.abspath(os.path.join(_cache_dir, "tinygrad", "cache.db")))
+cache_dir: str = os.path.join(getenv("XDG_CACHE_HOME", os.path.expanduser("~/Library/Caches" if OSX else "~/.cache")), "tinygrad")
+CACHEDB: str = getenv("CACHEDB", os.path.abspath(os.path.join(cache_dir, "cache.db")))
 CACHELEVEL = getenv("CACHELEVEL", 2)
 
-VERSION = 16
+VERSION = 17
 _db_connection = None
 def db_connection():
   global _db_connection
@@ -159,7 +183,7 @@ def diskcache_clear():
   drop_tables = cur.execute("SELECT 'DROP TABLE IF EXISTS ' || quote(name) || ';' FROM sqlite_master WHERE type = 'table';").fetchall()
   cur.executescript("\n".join([s[0] for s in drop_tables] + ["VACUUM;"]))
 
-def diskcache_get(table:str, key:Union[Dict, str, int]) -> Any:
+def diskcache_get(table:str, key:Union[dict, str, int]) -> Any:
   if CACHELEVEL == 0: return None
   if isinstance(key, (str,int)): key = {"key": key}
   conn = db_connection()
@@ -172,8 +196,20 @@ def diskcache_get(table:str, key:Union[Dict, str, int]) -> Any:
   return None
 
 _db_tables = set()
-def diskcache_put(table:str, key:Union[Dict, str, int], val:Any):
-  pass
+def diskcache_put(table:str, key:Union[dict, str, int], val:Any, prepickled=False):
+  if CACHELEVEL == 0: return val
+  if isinstance(key, (str,int)): key = {"key": key}
+  conn = db_connection()
+  cur = conn.cursor()
+  if table not in _db_tables:
+    TYPES = {str: "text", bool: "integer", int: "integer", float: "numeric", bytes: "blob"}
+    ltypes = ', '.join(f"{k} {TYPES[type(key[k])]}" for k in key.keys())
+    cur.execute(f"CREATE TABLE IF NOT EXISTS '{table}_{VERSION}' ({ltypes}, val blob, PRIMARY KEY ({', '.join(key.keys())}))")
+    _db_tables.add(table)
+  cur.execute(f"REPLACE INTO '{table}_{VERSION}' ({', '.join(key.keys())}, val) VALUES ({', '.join(['?']*len(key.keys()))}, ?)", tuple(key.values()) + (val if prepickled else pickle.dumps(val), ))  # noqa: E501
+  conn.commit()
+  cur.close()
+  return val
 
 def diskcache(func):
   def wrapper(*args, **kwargs) -> bytes:
@@ -181,6 +217,10 @@ def diskcache(func):
     if (ret:=diskcache_get(table, key)): return ret
     return diskcache_put(table, key, func(*args, **kwargs))
   return wrapper
+
+# *** process replay ***
+
+CAPTURE_PROCESS_REPLAY = getenv("RUN_PROCESS_REPLAY") or getenv("CAPTURE_PROCESS_REPLAY")
 
 # *** http support ***
 
@@ -193,7 +233,7 @@ def _ensure_downloads_dir() -> pathlib.Path:
       subprocess.run(["sudo", "chown", "tiny:root", downloads_dir], check=True)
       subprocess.run(["sudo", "chmod", "775", downloads_dir], check=True)
     return downloads_dir
-  return pathlib.Path(_cache_dir) / "tinygrad" / "downloads"
+  return pathlib.Path(cache_dir) / "downloads"
 
 def fetch(url:str, name:Optional[Union[pathlib.Path, str]]=None, subdir:Optional[str]=None, gunzip:bool=False,
           allow_caching=not getenv("DISABLE_HTTP_CACHE")) -> pathlib.Path:
@@ -206,7 +246,7 @@ def fetch(url:str, name:Optional[Union[pathlib.Path, str]]=None, subdir:Optional
       assert r.status == 200, r.status
       length = int(r.headers.get('content-length', 0)) if not gunzip else None
       readfile = gzip.GzipFile(fileobj=r) if gunzip else r
-      progress_bar = tqdm(total=length, unit='B', unit_scale=True, desc=f"{url}", disable=CI)
+      progress_bar:tqdm = tqdm(total=length, unit='B', unit_scale=True, desc=f"{url}", disable=CI)
       with tempfile.NamedTemporaryFile(dir=_dir, delete=False) as f:
         while chunk := readfile.read(16384): progress_bar.update(f.write(chunk))
         f.close()
@@ -227,17 +267,26 @@ def cpu_objdump(lib, objdump_tool='objdump'):
     pathlib.Path(f.name).write_bytes(lib)
     print(subprocess.check_output([objdump_tool, '-d', f.name]).decode('utf-8'))
 
+def capstone_flatdump(lib: bytes):
+  import capstone
+  match platform.machine():
+    case 'x86_64': cs = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+    case 'aarch64' | 'arm64': cs = capstone.Cs(capstone.CS_ARCH_ARM64, capstone.CS_MODE_ARM)
+    case machine: raise NotImplementedError(f"Capstone disassembly isn't supported for {machine}")
+  for instr in cs.disasm(lib, 0):
+    print(f"{instr.address:#08x}: {instr.mnemonic}\t{instr.op_str}")
+
 # *** ctypes helpers
 
 # TODO: make this work with read only memoryviews (if possible)
 def from_mv(mv:memoryview, to_type=ctypes.c_char):
   return ctypes.cast(ctypes.addressof(to_type.from_buffer(mv)), ctypes.POINTER(to_type * len(mv))).contents
 def to_mv(ptr:int, sz:int) -> memoryview: return memoryview(ctypes.cast(ptr, ctypes.POINTER(ctypes.c_uint8 * sz)).contents).cast("B")
-def mv_address(mv:memoryview): return ctypes.addressof(ctypes.c_char.from_buffer(mv))
-def to_char_p_p(options: List[bytes], to_type=ctypes.c_char):
+def mv_address(mv): return ctypes.addressof(ctypes.c_char.from_buffer(mv))
+def to_char_p_p(options: list[bytes], to_type=ctypes.c_char):
   return (ctypes.POINTER(to_type) * len(options))(*[ctypes.cast(ctypes.create_string_buffer(o), ctypes.POINTER(to_type)) for o in options])
 @functools.lru_cache(maxsize=None)
-def init_c_struct_t(fields: Tuple[Tuple[str, ctypes._SimpleCData], ...]):
+def init_c_struct_t(fields: tuple[tuple[str, ctypes._SimpleCData], ...]):
   class CStruct(ctypes.Structure):
     _pack_, _fields_ = 1, fields
   return CStruct
@@ -246,13 +295,15 @@ def flat_mv(mv:memoryview): return mv if len(mv) == 0 else mv.cast("B", shape=(m
 
 # *** tqdm
 
-class tqdm:
-  def __init__(self, iterable=None, desc:str='', disable:bool=False, unit:str='it', unit_scale=False, total:Optional[int]=None, rate:int=100):
+class tqdm(Generic[T]):
+  def __init__(self, iterable:Iterable[T]|None=None, desc:str='', disable:bool=False,
+               unit:str='it', unit_scale=False, total:Optional[int]=None, rate:int=100):
     self.iterable, self.disable, self.unit, self.unit_scale, self.rate = iterable, disable, unit, unit_scale, rate
     self.st, self.i, self.n, self.skip, self.t = time.perf_counter(), -1, 0, 1, getattr(iterable, "__len__", lambda:0)() if total is None else total
     self.set_description(desc)
     self.update(0)
-  def __iter__(self):
+  def __iter__(self) -> Iterator[T]:
+    assert self.iterable is not None, "need an iterable to iterate"
     for item in self.iterable:
       yield item
       self.update(1)
