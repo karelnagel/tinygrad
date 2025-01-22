@@ -56,7 +56,7 @@ def to_ts(o):
             f".vec({o.v})" if o.v != 1 else ""
         )
     if isinstance(o, PtrDType):
-        return f"{to_ts(o.base)}.ptr({'true' if o.local else ''})" + (
+        return f"{to_ts(o.base)}.ptr({o.size}{', true' if o.local else ''})" + (
             f".vec({o.v})" if o.v != 1 else ""
         )
     if isinstance(o, DType):
