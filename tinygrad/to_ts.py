@@ -78,7 +78,7 @@ def to_ts(o):
     if isinstance(o, TensorCore):
         return f"new TensorCore({{ dims:{to_ts(o.dims)}, threads:{to_ts(o.threads)}, elements_per_thread:{to_ts(o.elements_per_thread)}, dtype_in:{to_ts(o.dtype_in)}, dtype_out:{to_ts(o.dtype_out)}, opts:{to_ts(o.opts)}, swizzle:{to_ts(o.swizzle)} }})"
     if isinstance(o, ProgramSpec):
-        return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)}, {to_ts(o._ran_post_init)})"
+        return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)}, {to_ts(o.ins)}, {to_ts(o._ran_post_init)})"
 
     # ************ CODEGEN ************
     if isinstance(o, IndexContext):
