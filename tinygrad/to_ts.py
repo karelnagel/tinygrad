@@ -2,6 +2,7 @@ from enum import Enum
 import itertools
 
 
+
 def to_ts(o):
     from tinygrad.ops import KernelInfo, UOp, UPat
     from tinygrad.codegen.lowerer import IndexContext
@@ -14,6 +15,7 @@ def to_ts(o):
     from tinygrad.codegen.linearize import BasicBlock
     from tinygrad.renderer import ProgramSpec, TensorCore
     from tinygrad.helpers import Metadata
+    from tinygrad.renderer import Estimates
     from tinygrad.device import (
         _Device,
         _MallocAllocator,
@@ -74,7 +76,7 @@ def to_ts(o):
     if isinstance(o, PythonRenderer):
         return f"new PythonRenderer()"
     if isinstance(o, TensorCore):
-        return f"new TensorCore({to_ts(o.dims)}, {to_ts(o.dtype_in)}, {to_ts(o.dtype_out)}, {to_ts(o.threads)}, {to_ts(o.reduce_axes)}, {to_ts(o.upcast_axes)})"
+        return f"new TensorCore({{ dims:{to_ts(o.dims)}, threads:{to_ts(o.threads)}, elements_per_thread:{to_ts(o.elements_per_thread)}, dtype_in:{to_ts(o.dtype_in)}, dtype_out:{to_ts(o.dtype_out)}, opts:{to_ts(o.opts)}, swizzle:{to_ts(o.swizzle)} }})"
     if isinstance(o, ProgramSpec):
         return f"new ProgramSpec({to_ts(o.name)}, {to_ts(o.src)}, {to_ts(o.device)}, {to_ts(o.uops)}, {to_ts(o.mem_estimate)}, {to_ts(o.global_size)}, {to_ts(o.local_size)}, {to_ts(o.vars)}, {to_ts(o.globals)}, {to_ts(o.outs)}, {to_ts(o._ran_post_init)})"
 
@@ -95,8 +97,6 @@ def to_ts(o):
         return f"new _Device()"
     if isinstance(o, BufferSpec):
         return f"new BufferSpec({to_ts(o.image)}, {to_ts(o.uncached)}, {to_ts(o.cpu_access)}, {to_ts(o.host)}, {to_ts(o.nolru)}, {to_ts(o.external_ptr)})"
-    if isinstance(o, Buffer):
-        return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, {to_ts(o.in_opaque)}, {to_ts(o.options)}, {to_ts(o.in_initial_value)}, {to_ts(getattr(o, '_lb_refcount', None))}, {to_ts(o._base)}, {to_ts(o.offset)}, {to_ts(o.in_preallocate)})"
     if isinstance(o, Allocator):
         return f"new Allocator()"
     if isinstance(o, LRUAllocator):
@@ -109,17 +109,19 @@ def to_ts(o):
     # ************ ENGINE ************
     if isinstance(o, CompiledRunner):
         return f"new CompiledRunner({to_ts(o.p)}, {to_ts(o.lib)})"
+    if isinstance(o,Estimates):
+        return f"new Estimates({to_ts(o.ops)}, {to_ts(o.lds)}, {to_ts(o.mem)})"
     if isinstance(o, Runner):
-        return f"new Runner({to_ts(o.display_name)}, {to_ts(o.device)}, {to_ts(o.op_estimate)}, {to_ts(o.mem_estimate)}, {to_ts(o.lds_estimate)})"
+        return f"new Runner({to_ts(o.display_name)}, {to_ts(o.device)}, {to_ts(o.estimates)})"
     if isinstance(o, ExecItem):
         return f"new ExecItem({to_ts(o.prg)}, {to_ts(o.bufs)}, {to_ts(o.metadata)})"
 
     if isinstance(o, ScheduleItem):
         return f"new ScheduleItem({to_ts(o.ast)}, {to_ts(o.bufs)}, {to_ts(o.metadata)}, {to_ts(o.assign_preloads)})"
     if isinstance(o, ScheduleContext):
-        return f"new ScheduleContext({to_ts(o.lazybufs)}, {to_ts(o.var_vals)}, {to_ts(o.assigns)}, {to_ts(o.realizes)}, {to_ts(o.allbufs)}, {to_ts(o.ops_metadata)}, {to_ts(o.children)})"
+        return f"new ScheduleContext({to_ts(o.tensor_uops)}, {to_ts(o.var_vals)}, {to_ts(o.assigns)}, {to_ts(o.realizes)}, {to_ts(o.allbufs)}, {to_ts(o.ops_metadata)}, {to_ts(o.contiguous)}, {to_ts(o.children)}, {to_ts(o.becomes_map)})"
     if isinstance(o, ScheduleItemContext):
-        return f"new ScheduleItemContext({to_ts(o.lazybufs)}, {to_ts(o.ops_metadata)}, {to_ts(o.assigns)}, {to_ts(o.var_vals)}, {to_ts(o.sinked)}, {to_ts(o.sts)}, {to_ts(o.bufs)}, {to_ts(o.metadata)}, {to_ts(o.assign_adj)})"
+        return f"new ScheduleItemContext({to_ts(o.var_vals)}, {to_ts(o.sts)}, {to_ts(o.bufs)})"
 
     # ************ TENSOR ************
     if isinstance(o, Tensor):
