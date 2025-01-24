@@ -256,6 +256,9 @@ class Tensor(SimpleMathTrait):
       else: t.lazydata = ns
 
     return memory_planner(schedule), var_vals
+  def _debug_ast(self):
+    schedule, _ = self.schedule_with_vars()
+    return [x.ast for x in schedule]
 
   def schedule(self, *lst:Tensor) -> list[ScheduleItem]:
     """Creates the schedule needed to realize these Tensor(s)."""
