@@ -93,6 +93,8 @@ def to_ts(o):
         return f"new Opt({to_ts(o.op)}, {to_ts(o.axis)}, {to_ts(o.amt)})"
 
     # ************ DEVICE ************
+    if isinstance(o, Buffer):
+        return f"new Buffer({to_ts(o.device)}, {to_ts(o.size)}, {to_ts(o.dtype)}, undefined, {to_ts(o.options)}, undefined, 0, {to_ts(o._base)}, {to_ts(o.offset)})"
     if isinstance(o, _Device):
         return f"new _Device()"
     if isinstance(o, BufferSpec):
