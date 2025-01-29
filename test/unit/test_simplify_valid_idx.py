@@ -1,7 +1,7 @@
 import unittest, itertools
 from typing import Tuple
 
-from tinygrad.codegen.uopgraph import full_graph_rewrite, is_increasing
+from tinygrad.codegen.rewriter import full_graph_rewrite, is_increasing
 from tinygrad.dtype import dtypes
 from tinygrad.ops import UOp, Ops, simplify_valid
 
