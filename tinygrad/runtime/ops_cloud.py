@@ -88,7 +88,7 @@ class CloudHandler(BaseHTTPRequestHandler):
     print(f"connection established with {self.client_address}, socket: {self.connection.fileno()}")
 
   def _do(self, method):
-    session = CloudHandler.sessions[unwrap(self.headers.get("Cookie")).split("session=")[1]]
+    session = CloudHandler.sessions[unwrap(self.headers.get("session"))]
     ret, status_code = b"", 200
     if self.path == "/batch" and method == "POST":
       # TODO: streaming deserialize?
@@ -172,10 +172,10 @@ class CloudDevice(Compiled):
   def __init__(self, device:str):
     if (host:=getenv("HOST", "")) != "": self.host = host
     else:
-      p = multiprocessing.Process(target=cloud_server, args=(6667,))
+      p = multiprocessing.Process(target=cloud_server, args=(8080,))
       p.daemon = True
       p.start()
-      self.host = "127.0.0.1:6667"
+      self.host = "127.0.0.1:8080"
 
     # state for the connection
     self.session = binascii.hexlify(os.urandom(0x10)).decode()
@@ -212,9 +212,9 @@ class CloudDevice(Compiled):
 
   def send(self, method, path, data:Optional[bytes]=None) -> bytes:
     # TODO: retry logic
-    self.conn.request(method, "/"+path, data, headers={"Cookie": f"session={self.session}"})
+    self.conn.request(method, "/"+path, data, headers={"session": self.session})
     response = self.conn.getresponse()
     assert response.status == 200, f"failed on {method} {path}"
     return response.read()
 
-if __name__ == "__main__": cloud_server(getenv("PORT", 6667))
+if __name__ == "__main__": cloud_server(getenv("PORT", 8080))
