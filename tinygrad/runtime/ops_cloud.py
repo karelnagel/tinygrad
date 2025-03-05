@@ -88,9 +88,9 @@ class CloudHandler(BaseHTTPRequestHandler):
     print(f"connection established with {self.client_address}, socket: {self.connection.fileno()}")
 
   def _do(self, method):
-    session = CloudHandler.sessions[unwrap(self.headers.get("session"))]
+    session = CloudHandler.sessions[self.path.split('?session=')[1].split('&')[0]]
     ret, status_code = b"", 200
-    if self.path == "/batch" and method == "POST":
+    if self.path.startswith("/batch") and method == "POST":
       # TODO: streaming deserialize?
       req = BatchRequest().deserialize(self.rfile.read(int(unwrap(self.headers.get('Content-Length')))))
       # the cmds are always last (currently in datahash)
@@ -117,12 +117,14 @@ class CloudHandler(BaseHTTPRequestHandler):
             extra_args = {k:v for k,v in [("global_size", c.global_size), ("local_size", c.local_size)] if v is not None}
             r = session.programs[(c.name, c.datahash)](*bufs, vals=c.vals, wait=c.wait, **extra_args)
             if r is not None: ret = str(r).encode()
-    elif self.path == "/renderer" and method == "GET":
+    elif self.path.startswith("/renderer") and method == "GET":
       cls, args = Device[CloudHandler.device].renderer.__reduce__()
       ret = json.dumps((cls.__module__, cls.__name__, args)).encode()
     else: status_code = 404
     self.send_response(status_code)
     self.send_header('Content-Length', str(len(ret)))
+    self.send_header('Access-Control-Allow-Origin', "*")
+    self.send_header('Access-Control-Allow-Methods', "GET, POST, OPTIONS")
     self.end_headers()
     return self.wfile.write(ret)
 
@@ -185,7 +187,7 @@ class CloudDevice(Compiled):
     if DEBUG >= 1: print(f"cloud with host {self.host}")
     while 1:
       try:
-        self.conn = http.client.HTTPConnection(self.host, timeout=60.0)
+        self.conn = http.client.HTTPConnection(self.host, timeout=60.0, )
         clouddev = json.loads(self.send("GET", "renderer").decode())
         break
       except Exception as e:
@@ -212,7 +214,7 @@ class CloudDevice(Compiled):
 
   def send(self, method, path, data:Optional[bytes]=None) -> bytes:
     # TODO: retry logic
-    self.conn.request(method, "/"+path, data, headers={"session": self.session})
+    self.conn.request(method, f"/{path}?session={self.session}", data)
     response = self.conn.getresponse()
     assert response.status == 200, f"failed on {method} {path}"
     return response.read()
