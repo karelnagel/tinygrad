@@ -106,4 +106,4 @@ class RKDevice(HCQCompiled):
   def __init__(self, device:str=""):
     self.tasks:queue.Queue = queue.Queue()
     RKWorker(self).start()
-    super().__init__(device, RKAllocator(self), RKRenderer(), RKCompiler(), functools.partial(RKProgram, self), RKSignal, RKComputeQueue)
+    super().__init__(device, RKAllocator(self), [(RKRenderer, RKCompiler)], functools.partial(RKProgram, self), RKSignal, RKComputeQueue)
