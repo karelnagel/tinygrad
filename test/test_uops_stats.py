@@ -8,6 +8,7 @@ from tinygrad.uop.ops import Ops, UOp
 from tinygrad.dtype import dtypes
 from tinygrad.codegen.opt import Opt, OptOps, KernelOptError
 from tinygrad.device import Device
+from tinygrad.renderer.ptx import PTXRenderer
 
 def flops_mem(uops, ignore_indexing=False):
   est = Estimates.from_uops(uops, ignore_indexing)
@@ -50,7 +51,8 @@ class TestMemoryCount(unittest.TestCase):
     a = Tensor.empty(1024, 1, dtype=dtypes.uint8).expand(1024, 1024)
     b = Tensor.empty(1024, 1, dtype=dtypes.uint8).expand(1024, 1024)
     _, mem = get_stats(a+b)
-    self.assertEqual(mem, 1024*1024 + 2*1024)  # 2 lil reads + 1 write
+    # rangeify is smart!
+    self.assertEqual(mem, 1024 + 2*1024)  # 2 lil reads + 1 lil write
 
   def test_self_add(self):
     a = Tensor.empty(1024, 1024, dtype=dtypes.uint8)
@@ -158,7 +160,7 @@ class TestUOpsStats(unittest.TestCase):
     self.assertEqual(flops_mem(uops), flops_mem(uops_fma))
 
 N = 64
-@unittest.skipIf(getenv("PTX"), "wrong in PTX") # maybe?
+@unittest.skipIf(isinstance(Device[Device.DEFAULT].renderer, PTXRenderer), "wrong in PTX") # maybe?
 class TestStatsOptimized(unittest.TestCase):
   @classmethod
   def setUpClass(cls):

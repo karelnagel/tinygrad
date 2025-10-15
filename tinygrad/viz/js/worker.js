@@ -2,10 +2,10 @@ const NODE_PADDING = 10;
 const LINE_HEIGHT = 14;
 const canvas = new OffscreenCanvas(0, 0);
 const ctx = canvas.getContext("2d");
-ctx.font = `${LINE_HEIGHT}px sans-serif`;
+ctx.font = `350 ${LINE_HEIGHT}px sans-serif`;
 
 onmessage = (e) => {
-  const { graph, additions, ctxs } = e.data;
+  const { graph, additions } = e.data;
   const g = new dagre.graphlib.Graph({ compound: true });
   g.setGraph({ rankdir: "LR" }).setDefaultEdgeLabel(function() { return {}; });
   if (additions.length !== 0) g.setNode("addition", {label:"", className:"overlay", padding:0});

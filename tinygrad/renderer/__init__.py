@@ -7,7 +7,7 @@ from tinygrad.uop.ops import Ops, UOp, sym_infer, sint, Variable, ssimplify, Gro
 from tinygrad.dtype import AddrSpace, PtrDType
 if TYPE_CHECKING:
   from tinygrad.codegen.opt.tc import TensorCore
-  from tinygrad.codegen.opt.kernel import Opt
+  from tinygrad.codegen.opt import Opt
 
 @dataclass(frozen=True)
 class Estimates:
@@ -112,6 +112,7 @@ class Renderer:
   # TODO: make this generic with a list of supported types
   supports_float4: bool = True
   has_local: bool = True
+  has_threads: bool = False
   has_shared: bool = True
   # NOTE: these two should be in (x,y,z) order to match the max_sizes argument in get_grouped_dims
   global_max: tuple[int, ...]|None = (0x8FFFFFFF,) * (3) # TODO: Ops.SPECIAL int32 indexes right now

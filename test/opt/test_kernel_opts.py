@@ -1,6 +1,5 @@
 import unittest
 from tinygrad import Device, Tensor, dtypes
-from tinygrad.helpers import CI
 from tinygrad.codegen.opt import Opt, OptOps, KernelOptError
 
 # TODO: write a clean version of this
@@ -93,7 +92,7 @@ class TestKernelOpts(unittest.TestCase):
     a = Tensor.rand(8, N, 8, N)
     r = a.sum(axis=(1,3))
     helper_linearizer_opt(r, [
-      # openCL / GPU=1 is 256 max threads
+      # openCL / CL=1 is 256 max threads
       [Opt(OptOps.GROUPTOP, 0, 2)], [Opt(OptOps.GROUPTOP, 0, 32)],
       [Opt(OptOps.GROUPTOP, 1, 2)], [Opt(OptOps.GROUPTOP, 1, 32)], # Checking how it works with 1 grouped_reduce.
       [Opt(OptOps.GROUPTOP, 0, 2), Opt(OptOps.GROUPTOP, 1, 2)],
@@ -177,9 +176,7 @@ class TestKernelOpts(unittest.TestCase):
     ], apply_tc=True, atol=atol, rtol=rtol)
 
   def test_padto_matmul(self):
-    if (CI and Device.DEFAULT in ["AMD", "NV", "CUDA"]):
-      self.skipTest("super slow on CUDA and AMD because of the big grid dims")
-    N = 17 * 17
+    N = 17
     Tensor.manual_seed(289)
     a = Tensor.rand(N, N)
     b = Tensor.rand(N, N)
@@ -213,7 +210,7 @@ class TestKernelOpts(unittest.TestCase):
       helper_linearizer_opt(a@b, [[Opt(OptOps.UNROLL, 0, 0), Opt(OptOps.PADTO, 2, 8)]])
 
   def test_padto_sum_ok(self):
-    N = 18 * 18
+    N = 18
     # NOTE: this setup prevents 17 * 17 contiguous merged into one dimension
     a = Tensor.rand(N, N).realize().shrink(((0, 17), (0, 17))) * 100
     b = (Tensor.rand(N, N) < 0.5).realize().shrink(((0, 17), (0, 17)))
@@ -244,7 +241,7 @@ class TestKernelOpts(unittest.TestCase):
     helper_linearizer_opt(a.sum(0).exp(), [[Opt(OptOps.PADTO, 1, 32)],])
 
   def test_padto_sum_not_ok(self):
-    N = 18 * 18
+    N = 18
     # NOTE: this setup prevents 17 * 17 contiguous merged into one dimension
     a = Tensor.rand(N, N).shrink(((0, 17), (0, 17))).exp()
     # exp is not safe to pad
@@ -261,7 +258,7 @@ class TestKernelOpts(unittest.TestCase):
       helper_linearizer_opt(b.sum(0), [[Opt(OptOps.PADTO, 1, 32)],])
 
   def test_padto_max(self):
-    N = 18 * 18
+    N = 18
     # NOTE: this setup prevents 17 * 17 contiguous merged into one axis
     a = -Tensor.rand(N, N).shrink(((0, 17), (0, 17))) * 100
 
@@ -282,7 +279,7 @@ class TestKernelOpts(unittest.TestCase):
 
   def test_padto_where(self):
     Tensor.manual_seed(0)
-    N = 17 * 17
+    N = 17
     a = (Tensor.randn(N, N).realize().max(axis=0, keepdim=True) > 1).where(1, 0)
     helper_linearizer_opt(a.max(0), [
       [Opt(OptOps.PADTO, 0, 32)],
@@ -291,7 +288,7 @@ class TestKernelOpts(unittest.TestCase):
 
   def test_padto_where_multioutput(self):
     Tensor.manual_seed(0)
-    N = 17 * 17
+    N = 17
     r = Tensor.randn(N, N).realize().max(axis=0, keepdim=True) > 1
     a0 = r.where(1, 0)
     a1 = r.where(2, 0)
@@ -327,14 +324,41 @@ class TestKernelOpts(unittest.TestCase):
   @unittest.skipUnless(Device[Device.DEFAULT].renderer.supports_float4, "test requires float4")
   def test_arange_opts(self):
     a = Tensor.arange(128)
+    # NOTE: arange no longer has reduce ops available for opt
     helper_linearizer_opt(a, [
-      [Opt(OptOps.GROUP, 0, 32)],
-      [Opt(OptOps.GROUPTOP, 0, 32)],
+      #[Opt(OptOps.GROUP, 0, 32)],
+      #[Opt(OptOps.GROUPTOP, 0, 32)],
       [Opt(op=OptOps.LOCAL, axis=0, arg=8)],
       [Opt(op=OptOps.LOCAL, axis=0, arg=8), Opt(op=OptOps.UPCAST, axis=0, arg=0)],
-      [Opt(op=OptOps.LOCAL, axis=0, arg=8), Opt(op=OptOps.UPCAST, axis=0, arg=0), Opt(op=OptOps.GROUP, axis=0, arg=8)],
-      [Opt(op=OptOps.LOCAL, axis=0, arg=8), Opt(op=OptOps.UPCAST, axis=0, arg=0), Opt(op=OptOps.GROUP, axis=0, arg=8), Opt(op=OptOps.UNROLL, axis=1, arg=4)], # noqa: E501
+      #[Opt(op=OptOps.LOCAL, axis=0, arg=8), Opt(op=OptOps.UPCAST, axis=0, arg=0), Opt(op=OptOps.GROUP, axis=0, arg=8)],
+      #[Opt(op=OptOps.LOCAL, axis=0, arg=8), Opt(op=OptOps.UPCAST, axis=0, arg=0), Opt(op=OptOps.GROUP, axis=0, arg=8), Opt(op=OptOps.UNROLL, axis=1, arg=4)], # noqa: E501
     ])
+
+  @unittest.skipUnless(Device[Device.DEFAULT].renderer.has_threads, "test requires threads")
+  @unittest.skipUnless(Device[Device.DEFAULT].renderer.global_max is not None and
+                       Device[Device.DEFAULT].renderer.global_max[0] > 1, "test requires multicore")
+  def test_thread_opts(self):
+    a = Tensor.rand(4, 4, 4, 4)
+    b = Tensor.rand(4, 4, 4)
+    r = (b.sqrt() + ((a+1).sum(axis=3).exp()))
+    helper_linearizer_opt(r, [
+      [Opt(OptOps.THREAD, 0, 2)],
+      [Opt(OptOps.UPCAST, 0, 2), Opt(OptOps.THREAD, 0, 2)],
+      [Opt(OptOps.UPCAST, 0, 2), Opt(OptOps.THREAD, 0, 2), Opt(OptOps.UNROLL, 0, 2)],
+    ] + [[Opt(OptOps.THREAD, 0, 4)] if Device[Device.DEFAULT].renderer.global_max[0] >= 4 else []]
+      + [[Opt(OptOps.THREAD, 0, 8)] if Device[Device.DEFAULT].renderer.global_max[0] >= 8 else []])
+
+  def test_double_sum_group(self):
+    a = Tensor.rand(4, 4, 4)
+    r = a.sum((1, 2)).sum()
+    with self.assertRaises(KernelOptError):
+      helper_linearizer_opt(r, [[Opt(OptOps.GROUPTOP, 0, 16)],])
+    r = a.sum((1, 2)).sum()
+    with self.assertRaises(KernelOptError):
+      helper_linearizer_opt(r, [[Opt(OptOps.UNROLL, 1, 4), Opt(OptOps.GROUPTOP, 0, 16)],])
+    r = a.sum((1, 2)).sum()
+    with self.assertRaises(KernelOptError):
+      helper_linearizer_opt(r, [[Opt(OptOps.GROUPTOP, 1, 4), Opt(OptOps.GROUPTOP, 0, 16)],])
 
 if __name__ == '__main__':
   unittest.main()

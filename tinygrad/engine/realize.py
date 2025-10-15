@@ -47,7 +47,8 @@ def get_program(ast:UOp, renderer:Renderer|None=None, opts:list[Opt]|None=None) 
   src = renderer.render(uops)
 
   return ProgramSpec(uops[-1].arg.name if uops[-1].arg is not None else "test", src, renderer.device, ast, uops,
-                     global_size=[1,1,1] if renderer.has_local else None, local_size=[1,1,1] if renderer.has_local else None)
+                     global_size=[1,1,1] if renderer.has_local or renderer.has_threads else None,
+                     local_size=[1,1,1] if renderer.has_local else None)
 
 # **************** Runners ****************
 
@@ -90,8 +91,9 @@ class CompiledRunner(Runner):
   def __reduce__(self): return self.__class__, (self.p, self.lib)
 
   def __call__(self, rawbufs:list[Buffer], var_vals:dict[str, int], wait=False) -> float|None:
+    has_local = Device[self.p.device].renderer.has_local
     global_size, local_size = self.p.launch_dims(var_vals)
-    if global_size is not None and local_size is None and all_int(self.p.global_size): # type: ignore[arg-type]
+    if has_local and global_size is not None and local_size is None and all_int(self.p.global_size): # type: ignore[arg-type]
       local_size = optimize_local_size(self._prg, global_size, rawbufs)
       global_size = [g//l if g%l == 0 else g/l for g,l in zip(global_size, local_size)]
       self.p = replace(self.p, global_size=global_size, local_size=local_size)
@@ -119,7 +121,7 @@ class BufferCopy(Runner):
       getattr(src.allocator.dev, 'fd', None) is not None and dest.allocator.supports_copy_from_disk
     if src.device.startswith("DISK") and hasattr(dest.allocator, 'copy_from_disk') and disk_supports_fast_copyout and src.nbytes >= 4096:
       dest.allocator.copy_from_disk(dest._buf, src._buf, src.nbytes)
-    elif src.device.startswith("DISK") and hasattr(dest.allocator, '_as_buffer'):
+    elif (src.device.startswith("DISK") or src.device.startswith("TINYFS")) and hasattr(dest.allocator, '_as_buffer'):
       # fast(ish) path, uses readinto in diskbuffers
       src.allocator._copyout(dest.allocator._as_buffer(dest._buf), src._buf)
     else:
@@ -138,13 +140,13 @@ class BufferXfer(BufferCopy):
 
 # **************** method cache ****************
 
-method_cache: dict[tuple[str, bytes, tuple[int, ...], bool], CompiledRunner] = {}
+method_cache: dict[tuple[str, type, bytes, tuple[int, ...], bool], CompiledRunner] = {}
 def get_runner(device:str, ast:UOp) -> CompiledRunner:
   # TODO: this should be all context relevant to rendering
   context = (BEAM.value, NOOPT.value, DEVECTORIZE.value)
-  ckey = (device, ast.key, context, False)
+  ckey = (device, type(Device[device].compiler), ast.key, context, False)
   if cret:=method_cache.get(ckey): return cret
-  bkey = (device.split(":")[0], ast.key, context, True)
+  bkey = (device.split(":")[0], type(Device[device].compiler), ast.key, context, True)
   if bret:=method_cache.get(bkey):
     method_cache[ckey] = ret = CompiledRunner(replace(bret.p, device=device), bret.lib)
   else:
@@ -163,7 +165,9 @@ class ExecItem:
   def run(self, _var_vals:dict[str, int]|None=None, wait=False, jit=False, do_update_stats=True) -> float|None:
     var_vals = self.fixedvars if _var_vals is None else (_var_vals|self.fixedvars)
     bufs = [cast(Buffer, x) for x in self.bufs] if jit else [cast(Buffer, x).ensure_allocated() for x in self.bufs]
-    if PROFILE: cpu_events.append(ProfilePointEvent(self.prg.device, "exec", self.prg.display_name, {"metadata":self.metadata, "var_vals":var_vals}))
+    if PROFILE:
+      payload = {"metadata":self.metadata, "var_vals":var_vals, "bufs":[b.trace_num for b in bufs]}
+      cpu_events.append(ProfilePointEvent(self.prg.device, "exec", self.prg.display_name, payload))
     et = self.prg(bufs, var_vals, wait=wait or DEBUG >= 2)
     if do_update_stats:
       GlobalCounters.kernel_count += 1
