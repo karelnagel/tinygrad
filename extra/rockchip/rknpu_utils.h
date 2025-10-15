@@ -236,7 +236,7 @@ void ops(char* op, int dtype)
         DPU_BN_CFG_BN_ALU_BYPASS(1) | DPU_BN_CFG_BN_BYPASS(1));
 
 
-    if (op == "ADD")
+    if (strcmp(op, "ADD") == 0)
     {
         EMIT(REG_DPU_EW_CFG,
                 DPU_EW_CFG_EW_CVT_TYPE(0) |
@@ -256,7 +256,7 @@ void ops(char* op, int dtype)
                 DPU_EW_CFG_EW_OP_BYPASS(0) |
                 DPU_EW_CFG_EW_BYPASS(0))
     }    
-    else if (op == "MUL")
+    else if (strcmp(op, "MUL") == 0)
     {
         EMIT(REG_DPU_EW_CFG,
             DPU_EW_CFG_EW_CVT_TYPE(0) |
