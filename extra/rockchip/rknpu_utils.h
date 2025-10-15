@@ -8,7 +8,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <libdrm/drm.h>
+#include <drm.h>
 #include "rknpu_ioctl.h"
 #include "rknn_api.h"
 #include "rknpu_register.h"

@@ -24,7 +24,7 @@ class RKCompiler(Compiler):
     arch_args = ['-ffixed-x18'] if target == 'arm64' else []
 
     with tempfile.NamedTemporaryFile(delete=True) as output_file:
-      subprocess.check_output([getenv("CC", 'clang'), '-x', 'c', *args, *arch_args, '-I/data/Dev/tinygrad/extra/rockchip',
+      subprocess.check_output([getenv("CC", 'clang'), '-x', 'c', *args, *arch_args, '-I/home/orangepi/tinygrad/extra/rockchip',
                                 '-', '-o', str(output_file.name)], input=src.encode('utf-8'))
       return output_file.read()
 
